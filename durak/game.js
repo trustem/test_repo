@@ -182,10 +182,18 @@ function setupUI() {
   });
 
   document.getElementById('new-game-btn').addEventListener('click', () => {
-    showScreen('setup-screen');
+    if (typeof mp !== 'undefined' && mp.enabled) {
+      if (typeof mpResetState === 'function') mpResetState();
+    } else {
+      showScreen('setup-screen');
+    }
   });
   document.getElementById('play-again-btn').addEventListener('click', () => {
-    showScreen('setup-screen');
+    if (typeof mp !== 'undefined' && mp.enabled) {
+      if (typeof mpResetState === 'function') mpResetState();
+    } else {
+      showScreen('setup-screen');
+    }
   });
   document.getElementById('debug-btn').addEventListener('click', () => {
     debugMode = !debugMode;
@@ -1501,6 +1509,7 @@ function doRightNeighborPass(playerIdx) {
 
 // ─── HUMAN PLAYER INTERACTION ────────────────────────────────
 function humanPlayerIdx() {
+  if (typeof mp !== 'undefined' && mp.enabled) return mp.seatIndex;
   return G.players.findIndex(p => !p.isBot);
 }
 
@@ -1560,6 +1569,7 @@ function renderAll() {
   renderHumanHand();
   renderActionButtons();
   renderPhase();
+  if (typeof mpAfterRender === 'function') mpAfterRender();
 }
 
 function renderTrump() {
@@ -2039,19 +2049,20 @@ function humanCardClick(card) {
   } else if (G.phase === 'attack' && G.attackDone && G.rightNeighborThrowing) {
     // Right neighbor throwing
     if (nominalOnTable(cardNominal(card)) && G.tablePairs.length < getAttackLimit()) {
-      saveUndoState();
-      doThrow(hi, card);
       UI.selectedCards = [];
+      mpAction('throw', { playerIdx: hi, cardId: card.id },
+        () => { saveUndoState(); doThrow(hi, card); });
     }
   } else if (G.phase === 'defense') {
     if (UI.selectedAttackPairIdx !== null) {
       // Try to defend selected attack pair with this card
       const pair = G.tablePairs[UI.selectedAttackPairIdx];
       if (pair && !pair.defense && canBeat(pair.attack, card, G.trumpSuit)) {
-        saveUndoState();
-        doDefend(hi, UI.selectedAttackPairIdx, card);
+        const atkPairIdx = UI.selectedAttackPairIdx;
         UI.selectedAttackPairIdx = null;
         UI.selectedCards = [];
+        mpAction('defense', { playerIdx: hi, attackPairIdx: atkPairIdx, defenseCardId: card.id },
+          () => { saveUndoState(); doDefend(hi, atkPairIdx, card); });
         return;
       }
     }
@@ -2079,10 +2090,10 @@ function selectAttackPair(pairIdx) {
     if (card) {
       const pair = G.tablePairs[pairIdx];
       if (pair && !pair.defense && canBeat(pair.attack, card, G.trumpSuit)) {
-        saveUndoState();
-        doDefend(hi, pairIdx, card);
         UI.selectedAttackPairIdx = null;
         UI.selectedCards = [];
+        mpAction('defense', { playerIdx: hi, attackPairIdx: pairIdx, defenseCardId: card.id },
+          () => { saveUndoState(); doDefend(hi, pairIdx, card); });
         return;
       }
     }
@@ -2146,20 +2157,28 @@ function renderActionButtons() {
     if (G.tablePairs.length === 0) {
       // Initial attack
       const attackBtn = btn('Атаковать', 'btn-attack', () => {
-        if (canAtk) { saveUndoState(); doAttack(hi, selectedCards); UI.selectedCards = []; }
+        if (canAtk) {
+          UI.selectedCards = [];
+          mpAction('attack', { playerIdx: hi, cardIds: selectedCards.map(c => c.id) },
+            () => { saveUndoState(); doAttack(hi, selectedCards); });
+        }
       });
       if (!canAtk) attackBtn.disabled = true;
       container.appendChild(attackBtn);
     } else if (allBeaten() || G.defenderTaking) {
       // Can throw more OR declare done
       const throwBtn = btn('Подкинуть', 'btn-attack', () => {
-        if (canAtk) { saveUndoState(); doThrow(hi, selectedCards[0]); UI.selectedCards = []; }
+        if (canAtk) {
+          UI.selectedCards = [];
+          mpAction('throw', { playerIdx: hi, cardId: selectedCards[0].id },
+            () => { saveUndoState(); doThrow(hi, selectedCards[0]); });
+        }
       });
       if (!canAtk) throwBtn.disabled = true;
       container.appendChild(throwBtn);
       container.appendChild(btn('Готово', 'btn-done', () => {
         UI.selectedCards = [];
-        declareAttackDone(hi);
+        mpAction('attackDone', { playerIdx: hi }, () => { declareAttackDone(hi); });
       }));
     }
   }
@@ -2170,13 +2189,17 @@ function renderActionButtons() {
     const canThrow = selectedCards.length === 1 && nominalOnTable(cardNominal(selectedCards[0]))
       && G.tablePairs.length < getAttackLimit();
     const throwBtn = btn('Подкинуть', 'btn-attack', () => {
-      if (canThrow) { saveUndoState(); doThrow(hi, selectedCards[0]); UI.selectedCards = []; }
+      if (canThrow) {
+        UI.selectedCards = [];
+        mpAction('throw', { playerIdx: hi, cardId: selectedCards[0].id },
+          () => { saveUndoState(); doThrow(hi, selectedCards[0]); });
+      }
     });
     if (!canThrow) throwBtn.disabled = true;
     container.appendChild(throwBtn);
     container.appendChild(btn('Пас', 'btn-pass', () => {
       UI.selectedCards = [];
-      doRightNeighborPass(hi);
+      mpAction('rightNeighborPass', { playerIdx: hi }, () => { doRightNeighborPass(hi); });
     }));
   }
 
@@ -2185,17 +2208,16 @@ function renderActionButtons() {
     const transferCandidates = p.hand.filter(c => canTransfer(c, G.tablePairs, G.trumpSuit));
     transferCandidates.forEach(tc => {
       container.appendChild(btn(`Перевод ${cardStr(tc)}`, 'btn-transfer', () => {
-        saveUndoState();
-        doTransfer(hi, tc);
         UI.selectedCards = [];
+        mpAction('transfer', { playerIdx: hi, cardId: tc.id },
+          () => { saveUndoState(); doTransfer(hi, tc); });
       }));
     });
     // Take button
     container.appendChild(btn('Взять', 'btn-take', () => {
-      saveUndoState();
       UI.selectedCards = [];
       UI.selectedAttackPairIdx = null;
-      doTake(hi);
+      mpAction('take', {}, () => { saveUndoState(); doTake(hi); });
     }));
   }
 
@@ -2208,14 +2230,14 @@ function renderActionButtons() {
       const toGive = selected.length > 0 ? selected : giveMatches;
       const label = selected.length > 0 ? `Дать в руку (${selected.length})` : `Дать все в руку (${giveMatches.length})`;
       container.appendChild(btn(label, 'btn-transfer', () => {
-        saveUndoState();
-        doNakiGiveToHand(hi, toGive);
         UI.selectedCards = [];
+        mpAction('nakiGiveToHand', { throwerIdx: hi, cardIds: toGive.map(c => c.id) },
+          () => { saveUndoState(); doNakiGiveToHand(hi, toGive); });
       }));
     }
     container.appendChild(btn('Пас', 'btn-pass', () => {
       UI.selectedCards = [];
-      doNakiGiveToHandPass(hi);
+      mpAction('nakiGiveToHandPass', { throwerIdx: hi }, () => { doNakiGiveToHandPass(hi); });
     }));
   }
 
@@ -2228,8 +2250,8 @@ function renderActionButtons() {
       const jokers = p.hand.filter(c => isJoker(c));
       jokers.forEach(joker => {
         container.appendChild(btn(`Накинуть ${cardStr(joker)}`, 'btn-throw', () => {
-          saveUndoState();
-          doNakiThrow(hi, joker);
+          mpAction('nakiThrow', { throwerIdx: hi, cardId: joker.id },
+            () => { saveUndoState(); doNakiThrow(hi, joker); });
         }));
       });
     } else {
@@ -2242,17 +2264,18 @@ function renderActionButtons() {
             selected.length > 0 ? `Накинуть (${selected.length})` : `Накинуть все (${matches.length})`,
             'btn-throw',
             () => {
-              saveUndoState();
-              doNakiThrowMultiple(hi, selected.length > 0 ? selected : matches);
+              const cards = selected.length > 0 ? selected : matches;
               UI.selectedCards = [];
+              mpAction('nakiThrowMultiple', { throwerIdx: hi, cardIds: cards.map(c => c.id) },
+                () => { saveUndoState(); doNakiThrowMultiple(hi, cards); });
             }
           ));
         } else {
           matches.forEach(mc => {
             container.appendChild(btn(`Накинуть ${cardStr(mc)}`, 'btn-throw', () => {
-              saveUndoState();
-              doNakiThrow(hi, mc);
               UI.selectedCards = [];
+              mpAction('nakiThrow', { throwerIdx: hi, cardId: mc.id },
+                () => { saveUndoState(); doNakiThrow(hi, mc); });
             }));
           });
         }

@@ -884,3 +884,13 @@ html, body {
 }
 .undo-buttons { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
 .btn-undo { background: #f0c040; color: #000; }
+
+/* ===================== MULTIPLAYER ===================== */
+.waiting-player {
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #f0ede0;
+}
