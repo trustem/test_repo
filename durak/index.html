@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Бардак — Переводной Дурак</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" class="screen active">
+  <div class="setup-container">
+    <h1 class="game-title">Бардак</h1>
+    <h2 class="game-subtitle">Переводной Дурак</h2>
+    <div class="setup-section">
+      <label class="setup-label">Количество игроков:</label>
+      <div class="player-count-buttons">
+        <button class="count-btn active" data-count="2">2</button>
+        <button class="count-btn" data-count="3">3</button>
+        <button class="count-btn" data-count="4">4</button>
+        <button class="count-btn" data-count="5">5</button>
+        <button class="count-btn" data-count="6">6</button>
+      </div>
+    </div>
+    <div class="setup-section">
+      <div id="player-slots"></div>
+    </div>
+    <button id="start-btn" class="start-button">Начать игру!</button>
+  </div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="game-screen" class="screen">
+  <div class="top-bar">
+    <span class="top-bar-title">Бардак</span>
+    <div class="deck-info">
+      <div id="deck-visual" class="deck-visual"><div class="deck-back"></div></div>
+      <span class="deck-label">Колода:</span>
+      <span id="deck-count" class="deck-count">40</span>
+    </div>
+    <button id="new-game-btn" class="new-game-btn">Новая игра</button>
+    <button id="debug-btn" class="debug-btn">🔍 Отладка</button>
+  </div>
+
+  <div id="trump-panel" class="trump-panel">
+    <div class="trump-panel-label">КОЗЫРЬ</div>
+    <div id="trump-panel-suit" class="trump-panel-suit"></div>
+    <div id="trump-card-panel" class="trump-card-panel"></div>
+    <div id="untouchable-panel" class="untouchable-panel"></div>
+  </div>
+
+  <div id="players-area" class="players-area"></div>
+
+  <div class="table-area">
+    <div id="table-cards" class="table-cards"></div>
+    <div id="action-hint" class="action-hint"></div>
+  </div>
+
+  <div id="action-buttons" class="action-buttons"></div>
+
+  <div class="human-area">
+    <div id="human-hand" class="human-hand"></div>
+  </div>
+
+  <div class="log-area">
+    <div class="log-header">Журнал игры</div>
+    <div class="log-body">
+      <div id="game-log" class="game-log"></div>
+      <div class="log-slider" id="log-slider">
+        <div class="log-slider-track" id="log-slider-track">
+          <div class="log-slider-thumb" id="log-slider-thumb"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="phase-indicator" style="display:none"></div>
+</div>
+
+<!-- GAME OVER SCREEN -->
+<div id="gameover-screen" class="screen">
+  <div class="gameover-container">
+    <h1 id="gameover-title" class="gameover-title"></h1>
+    <div id="gameover-details" class="gameover-details"></div>
+    <div id="scores-display" class="scores-display"></div>
+    <button id="play-again-btn" class="start-button">Играть снова</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
