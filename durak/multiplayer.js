@@ -26,6 +26,7 @@ var mp = {
   roomRef: null,
   unsubscribe: null,
   processingAction: false,
+  logRenderedCount: 0,
 };
 
 // ─── UID MANAGEMENT ──────────────────────────────────────────
@@ -264,11 +265,25 @@ function mpSyncState() {
   }
 }
 
+// ─── CLIENT: SYNC LOG ENTRIES ────────────────────────────────
+function mpSyncLog(logEntries) {
+  if (!logEntries || !logEntries.length) return;
+  var newEntries = logEntries.slice(mp.logRenderedCount);
+  for (var i = 0; i < newEntries.length; i++) {
+    // skipState=true so addLog doesn't push into the old G.logEntries
+    addLog(newEntries[i].msg, newEntries[i].type, true);
+  }
+  mp.logRenderedCount = logEntries.length;
+}
+
 // ─── CLIENT: LOAD GAME STATE ─────────────────────────────────
 var mpGameScreenInitialized = false;
 
 function mpLoadGameState(state) {
   if (!state) return;
+
+  // Sync log entries from host before replacing G
+  mpSyncLog(state.logEntries);
 
   // Set global G from remote state
   G = state;
@@ -545,6 +560,7 @@ function mpResetState() {
   mp.isHost = false;
   mp.roomRef = null;
   mp.processingAction = false;
+  mp.logRenderedCount = 0;
   mpGameScreenInitialized = false;
   showScreen('lobby-screen');
 }

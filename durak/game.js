@@ -124,6 +124,8 @@ function newGameState(playerDefs) {
     gameOverPlayer: null,
     // timing
     botTimer: null,
+    // multiplayer log sync
+    logEntries: [],
   };
 }
 
@@ -1783,14 +1785,15 @@ function renderTable() {
       UI.selectedCards = [];
       // Determine what kind of action
       if (G.tablePairs.length === 0 && G.phase === 'attack' && !G.attackDone && G.attackerIdx === hi) {
-        saveUndoState();
-        doAttack(hi, [card]);
+        mpAction('attack', { playerIdx: hi, cardIds: [card.id] },
+          () => { saveUndoState(); doAttack(hi, [card]); });
       } else if (allBeaten() && nominalOnTable(cardNominal(card)) && G.tablePairs.length < getAttackLimit()) {
-        saveUndoState();
         if (G.attackDone && G.rightNeighborThrowing && rightNeighborOfDefender() === hi) {
-          doThrow(hi, card);
+          mpAction('throw', { playerIdx: hi, cardId: card.id },
+            () => { saveUndoState(); doThrow(hi, card); });
         } else if (!G.attackDone && G.attackerIdx === hi) {
-          doThrow(hi, card);
+          mpAction('throw', { playerIdx: hi, cardId: card.id },
+            () => { saveUndoState(); doThrow(hi, card); });
         }
       }
     });
@@ -1844,10 +1847,10 @@ function renderTable() {
           if (!card) { dragState = null; return; }
           if (canBeat(pair.attack, card, G.trumpSuit)) {
             dragState = null;
-            saveUndoState();
-            doDefend(hi, pairIdx, card);
             UI.selectedAttackPairIdx = null;
             UI.selectedCards = [];
+            mpAction('defense', { playerIdx: hi, attackPairIdx: pairIdx, defenseCardId: card.id },
+              () => { saveUndoState(); doDefend(hi, pairIdx, card); });
           }
         } else if (dragState.type === 'defcard') {
           // Reassign defense card from another pair to this pair
@@ -1858,16 +1861,18 @@ function renderTable() {
           const defCard = srcPair.defense;
           if (canBeat(pair.attack, defCard, G.trumpSuit)) {
             dragState = null;
-            // Reassign without returning to hand (card was already consumed)
-            pair.defense = defCard;
-            pair.defender = hi;
-            srcPair.defense = null;
-            srcPair.defender = undefined;
-            G.firstBeaten = G.tablePairs.some(p => p.defense !== null);
-            UI.selectedAttackPairIdx = null;
-            UI.selectedCards = [];
-            renderAll();
-            scheduleBot();
+            // Reassign: direct G mutation, only works in solo/host mode
+            if (typeof mp === 'undefined' || !mp.enabled || mp.isHost) {
+              pair.defense = defCard;
+              pair.defender = hi;
+              srcPair.defense = null;
+              srcPair.defender = undefined;
+              G.firstBeaten = G.tablePairs.some(p => p.defense !== null);
+              UI.selectedAttackPairIdx = null;
+              UI.selectedCards = [];
+              renderAll();
+              scheduleBot();
+            }
           } else {
             dragState = null;
           }
@@ -2383,7 +2388,7 @@ function cardStr(card) {
 }
 
 // ─── LOGGING ─────────────────────────────────────────────────
-function addLog(msg, type = 'system') {
+function addLog(msg, type = 'system', skipState = false) {
   const log = document.getElementById('game-log');
   if (!log) return;
   const el = document.createElement('div');
@@ -2396,6 +2401,11 @@ function addLog(msg, type = 'system') {
   // Keep log trim
   while (log.children.length > 120) log.removeChild(log.firstChild);
   updateLogSlider();
+  // Store in G for multiplayer sync (only on host/solo, not when replaying on client)
+  if (!skipState && typeof G !== 'undefined' && G) {
+    if (!G.logEntries) G.logEntries = [];
+    G.logEntries.push({ msg, type });
+  }
 }
 
 // ─── LOG SLIDER ───────────────────────────────────────────────
