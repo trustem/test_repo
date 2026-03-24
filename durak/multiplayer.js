@@ -231,14 +231,14 @@ async function mpHostStartGame(roomData) {
       }
     }
 
-    // Update status in Firestore before starting
-    await mp.roomRef.update({ status: 'playing' });
-
-    // Enable multiplayer mode
+    // Enable multiplayer mode BEFORE startGame so humanPlayerIdx() works correctly
     mp.enabled = true;
 
     // Start the game
     startGame(playerDefs);
+
+    // Update status in Firestore (state sync happens via mpAfterRender in renderAll)
+    await mp.roomRef.update({ status: 'playing' });
   } catch (e) {
     alert('Ошибка запуска игры: ' + e.message);
   }
@@ -272,6 +272,9 @@ function mpLoadGameState(state) {
 
   // Set global G from remote state
   G = state;
+
+  // Enable multiplayer mode for client
+  mp.enabled = true;
 
   // Initialize UI state if needed
   if (!UI) {
