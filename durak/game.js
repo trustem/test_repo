@@ -473,6 +473,10 @@ function canAttackWith(cards) {
 }
 
 function doAttack(playerIdx, cards) {
+  // Enforce attack limit: never place more cards than defender can receive
+  const allowed = getAttackLimit() - G.tablePairs.length;
+  if (allowed <= 0) return false;
+  cards = cards.slice(0, allowed);
   addLog(`${G.players[playerIdx].name} атакует: ${cards.map(cardStr).join(', ')}`, 'attack');
   for (const card of cards) {
     removeFromHand(playerIdx, card);
@@ -1467,6 +1471,7 @@ function declareAttackDone(playerIdx) {
 }
 
 function doThrow(throwerIdx, card) {
+  if (G.tablePairs.length >= getAttackLimit()) return false;
   addLog(`${G.players[throwerIdx].name} подкидывает: ${cardStr(card)}`, 'attack');
   removeFromHand(throwerIdx, card);
   G.tablePairs.push({ attack: card, defense: null, attacker: throwerIdx });
@@ -2024,6 +2029,12 @@ function humanCardClick(card) {
           renderHumanHand();
           return;
         }
+      }
+      // Don't exceed attack limit (limit = how many more cards can be placed on table)
+      const availableSlots = getAttackLimit() - G.tablePairs.length;
+      if (UI.selectedCards.length >= availableSlots) {
+        renderHumanHand();
+        return;
       }
       UI.selectedCards.push(card.id);
     } else {
