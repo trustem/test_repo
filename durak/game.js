@@ -183,6 +183,17 @@ function setupUI() {
     startGame(playerDefs);
   });
 
+  // Mobile log toggle
+  const logToggleBtn = document.getElementById('log-toggle-btn');
+  const logCloseBtn = document.getElementById('log-close-btn');
+  const logArea = document.querySelector('.log-area');
+  if (logToggleBtn && logArea) {
+    logToggleBtn.addEventListener('click', () => logArea.classList.toggle('mobile-open'));
+  }
+  if (logCloseBtn && logArea) {
+    logCloseBtn.addEventListener('click', () => logArea.classList.remove('mobile-open'));
+  }
+
   document.getElementById('new-game-btn').addEventListener('click', () => {
     if (typeof mp !== 'undefined' && mp.enabled) {
       if (typeof mpResetState === 'function') mpResetState();
@@ -1760,7 +1771,7 @@ function renderTable() {
     (G.phase === 'attack' && G.attackDone && G.rightNeighborThrowing && rightNeighborOfDefender() === hi)
   );
 
-  if (isHumanAttacking) {
+  if (isHumanAttacking && window.innerWidth > 600) {
     table.addEventListener('dragover', (e) => {
       if (dragState && dragState.type === 'hand') {
         const card = G.players[hi].hand.find(c => c.id === dragState.cardId);
@@ -1821,8 +1832,8 @@ function renderTable() {
     const atkEl = makeCardElement(pair.attack, true);
     atkEl.classList.add('attack-card', 'small');
 
-    // DnD: unbeaten attack card is a drop target for defense from hand
-    if (isDefending && !pair.defense) {
+    // DnD: unbeaten attack card is a drop target for defense from hand (desktop only)
+    if (isDefending && !pair.defense && window.innerWidth > 600) {
       atkEl.addEventListener('dragover', (e) => {
         if (dragState) {
           let card = null;
@@ -1891,8 +1902,8 @@ function renderTable() {
       const defEl = makeCardElement(pair.defense, true);
       defEl.classList.add('defense-card', 'small');
 
-      // DnD: defense cards are draggable if it's human's defense turn (for reassignment)
-      if (isDefending && pair.defender === hi) {
+      // DnD: defense cards are draggable if it's human's defense turn (desktop only)
+      if (isDefending && pair.defender === hi && window.innerWidth > 600) {
         defEl.setAttribute('draggable', 'true');
         defEl.addEventListener('dragstart', (e) => {
           dragState = { type: 'defcard', cardId: pair.defense.id, fromPairIdx: pairIdx };
@@ -1961,8 +1972,8 @@ function renderHumanHand() {
       el.addEventListener('click', () => humanCardClick(card));
     }
 
-    // ── DnD: make hand cards draggable (always, when it's our turn)
-    if (isMyTurn) {
+    // ── DnD: make hand cards draggable (skip on mobile — tap-based interaction works fine)
+    if (isMyTurn && window.innerWidth > 600) {
       el.setAttribute('draggable', 'true');
       el.addEventListener('dragstart', (e) => {
         dragState = { type: 'hand', cardId: card.id };

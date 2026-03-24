@@ -894,3 +894,147 @@ html, body {
   font-weight: 600;
   color: #f0ede0;
 }
+
+/* ===================== LOG TOGGLE (desktop hidden) ===================== */
+.log-toggle-btn { display: none; }
+.log-close-btn { display: none; }
+.log-header { display: flex; align-items: center; justify-content: space-between; }
+
+/* ===================== MOBILE ===================== */
+@media (max-width: 600px) {
+  :root {
+    --card-w: 54px;
+    --card-h: 76px;
+    --card-w-sm: 40px;
+    --card-h-sm: 56px;
+  }
+
+  /* Use flex column instead of grid */
+  #game-screen.active {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: -webkit-fill-available;
+    padding: 4px;
+    gap: 4px;
+    overflow: hidden;
+  }
+
+  /* Top bar: compact */
+  .top-bar {
+    flex-shrink: 0;
+    height: 40px;
+    padding: 0 8px;
+    gap: 8px;
+  }
+  .top-bar-title { font-size: 0.9rem; letter-spacing: 1px; }
+  .deck-label { display: none; }
+  .debug-btn { display: none; }
+  .new-game-btn { padding: 4px 8px; font-size: 0.75rem; }
+
+  /* Log toggle: visible on mobile */
+  .log-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: var(--text-dim);
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    flex-shrink: 0;
+    touch-action: manipulation;
+  }
+
+  /* Trump panel: horizontal strip */
+  .trump-panel {
+    flex-direction: row;
+    flex-shrink: 0;
+    padding: 5px 10px;
+    gap: 10px;
+    justify-content: flex-start;
+    align-items: center;
+  }
+  .trump-panel-label { font-size: 0.55rem; writing-mode: vertical-rl; letter-spacing: 1px; }
+  .trump-panel-suit { font-size: 1.8rem; }
+  .trump-card-panel { width: var(--card-w-sm); min-height: var(--card-h-sm); flex-shrink: 0; }
+  .untouchable-panel { font-size: 0.6rem; padding: 3px 6px; min-height: 0; flex: 1; text-align: left; }
+
+  /* Players area: single scrollable row */
+  .players-area {
+    flex-shrink: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .players-area::-webkit-scrollbar { display: none; }
+  .players-top-row, .players-side-row { flex-wrap: nowrap; gap: 6px; }
+  .player-info-box { min-width: 68px; max-width: 95px; padding: 4px 6px; flex-shrink: 0; }
+  .player-name { font-size: 0.68rem; }
+  .player-card-count { font-size: 0.6rem; }
+  .player-score-display { font-size: 0.6rem; }
+  .bot-cards { display: none; }
+  .naki-cards-row { display: none; }
+
+  /* Table: fills remaining space */
+  .table-area { flex: 1; min-height: 110px; max-height: none; }
+  .table-pair .defense-card { margin-top: -12px; margin-left: 6px; }
+
+  /* Action buttons: bigger touch targets */
+  .action-buttons { flex-shrink: 0; min-height: 52px; padding: 2px 0; gap: 6px; }
+  .action-btn { padding: 10px 14px; font-size: 0.88rem; min-height: 44px; touch-action: manipulation; }
+
+  /* Human hand: single horizontal row */
+  .human-area { flex-shrink: 0; padding: 2px 4px 4px; }
+  .human-hand {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: visible;
+    justify-content: flex-start;
+    min-height: var(--card-h);
+    padding: 0 2px 8px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .human-hand::-webkit-scrollbar { display: none; }
+
+  /* No hover lift on mobile */
+  .card.clickable:hover { transform: none; box-shadow: var(--shadow); }
+  .card.selected { transform: translateY(-8px); }
+  .card.clickable { touch-action: manipulation; }
+
+  /* Log: fullscreen overlay, hidden by default */
+  .log-area {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    border-radius: 0;
+    display: none;
+    z-index: 200;
+  }
+  .log-area.mobile-open { display: flex; }
+  .log-close-btn {
+    display: block;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    touch-action: manipulation;
+  }
+
+  /* Lobby/setup screens: comfortable padding on mobile */
+  .setup-container { padding: 24px 20px; }
+  .game-title { font-size: 2.4rem; }
+  .start-button { padding: 12px; font-size: 1.1rem; }
+  .count-btn { width: 40px; height: 40px; }
+
+  /* Gameover screen */
+  .gameover-container { padding: 24px 16px; }
+  .gameover-title { font-size: 1.8rem; }
+}
