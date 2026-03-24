@@ -30,10 +30,10 @@ var mp = {
 
 // ─── UID MANAGEMENT ──────────────────────────────────────────
 function mpGetUid() {
-  var uid = localStorage.getItem('bardak_uid');
+  var uid = sessionStorage.getItem('bardak_uid');
   if (!uid) {
     uid = 'u_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-    localStorage.setItem('bardak_uid', uid);
+    sessionStorage.setItem('bardak_uid', uid);
   }
   return uid;
 }
