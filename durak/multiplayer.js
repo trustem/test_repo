@@ -84,8 +84,6 @@ async function mpCreateRoom(hostName, maxPlayers) {
     document.getElementById('waiting-msg').textContent = 'Ожидание других игроков...';
 
     showScreen('waiting-screen');
-    document.getElementById('waiting-code').textContent = code;
-
     mpListenRoom();
   } catch (e) {
     alert('Ошибка создания комнаты: ' + e.message);
@@ -142,8 +140,6 @@ async function mpJoinRoom(code, playerName) {
     document.getElementById('waiting-msg').textContent = 'Ожидание начала игры...';
 
     showScreen('waiting-screen');
-    document.getElementById('waiting-code').textContent = code.toUpperCase();
-
     mpListenRoom();
   } catch (e) {
     alert('Ошибка подключения к комнате: ' + e.message);
@@ -480,6 +476,9 @@ function mpAction(type, payload, fn) {
 function mpAfterRender() {
   if (!mp.enabled || !mp.isHost) return;
   mpSyncState();
+  if (G && G.gameOver && mp.roomRef) {
+    mp.roomRef.update({ status: 'finished' }).catch(function() {});
+  }
 }
 
 // ─── LOBBY BROWSER ───────────────────────────────────────────
@@ -575,6 +574,7 @@ function mpSetupLobby() {
   if (createBtn) {
     createBtn.addEventListener('click', async function() {
       var name = (document.getElementById('lobby-name-input').value || '').trim() || 'Хост';
+      if (name !== 'Хост') localStorage.setItem('bardak_player_name', name);
       mpStopBrowsing();
       await mpCreateRoom(name, 4); // default 4 players; host can change in waiting room
     });
@@ -619,6 +619,23 @@ function mpResetState() {
     mp.unsubscribe();
     mp.unsubscribe = null;
   }
+  // Notify Firestore that we're leaving
+  if (mp.roomRef) {
+    if (mp.isHost) {
+      // Host leaving: mark room finished and clear heavy game state
+      mp.roomRef.update({ status: 'finished', gameState: null }).catch(function() {});
+    } else {
+      // Non-host: remove from players list if still in lobby
+      var ref = mp.roomRef;
+      var uid = mp.uid;
+      ref.get().then(function(doc) {
+        if (doc.exists && doc.data().status === 'lobby') {
+          var players = (doc.data().players || []).filter(function(p) { return p.uid !== uid; });
+          ref.update({ players: players }).catch(function() {});
+        }
+      }).catch(function() {});
+    }
+  }
   mp.enabled = false;
   mp.roomCode = null;
   mp.seatIndex = null;
@@ -635,4 +652,15 @@ function mpResetState() {
 // ─── INIT ON DOM READY ───────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
   mpSetupLobby();
+});
+
+// Notify server when tab is closed
+window.addEventListener('beforeunload', function() {
+  if (!mp.roomRef) return;
+  if (mp.isHost) {
+    // Use sendBeacon for best-effort sync write on tab close
+    var url = 'https://firestore.googleapis.com/v1/projects/bardak-913b6/databases/(default)/documents/rooms/' + mp.roomCode + '?updateMask.fieldPaths=status&updateMask.fieldPaths=gameState';
+    // Simple approach: just attempt the update (may not complete on tab close)
+    mp.roomRef.update({ status: 'finished', gameState: null }).catch(function() {});
+  }
 });

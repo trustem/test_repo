@@ -108,6 +108,7 @@ function newGameState(playerDefs) {
     nakiJokerMode: false,
     nakiJokerThrowers: [],   // who threw jokers in naki
     nakiGiveToHandPending: [],  // players who can "give to hand" (phase 1, before nakidyvanie)
+    nakiGiveToHandLimit: 0,    // max additional cards that can be given in give-to-hand phase
     defenderTaking: false,      // defender declared taking; attackers may still throw
     // transfer throw queue
     transferThrowQueue: [],   // players from transfer chain who can still throw
@@ -135,15 +136,23 @@ function setupUI() {
   const countBtns = document.querySelectorAll('.count-btn');
   let playerCount = 2;
 
+  function getPlayerName() {
+    const lobby = (document.getElementById('lobby-name-input').value || '').trim();
+    if (lobby) return lobby;
+    return localStorage.getItem('bardak_player_name') || 'Игрок';
+  }
+
   function renderSlots(n) {
+    const humanName = getPlayerName();
     slots.innerHTML = '';
     for (let i = 0; i < n; i++) {
       const isBot = i > 0;
+      const defaultName = isBot ? 'Бот ' + i : humanName;
       const div = document.createElement('div');
       div.className = 'player-slot';
       div.innerHTML = `
         <span class="player-slot-num">${i + 1}</span>
-        <input type="text" value="${isBot ? 'Бот ' + i : 'Игрок'}" maxlength="12" data-idx="${i}">
+        <input type="text" value="${defaultName}" maxlength="12" data-idx="${i}">
         <div class="type-toggle">
           <button data-idx="${i}" data-type="human" class="${!isBot ? 'active' : ''}">Человек</button>
           <button data-idx="${i}" data-type="bot" class="${isBot ? 'active' : ''}">Бот</button>
@@ -180,8 +189,23 @@ function setupUI() {
       alert('Нужен хотя бы один живой игрок!');
       return;
     }
+    // Save human player name for future sessions
+    const humanDef = playerDefs.find(p => !p.isBot);
+    if (humanDef) localStorage.setItem('bardak_player_name', humanDef.name);
     startGame(playerDefs);
   });
+
+  // Persist lobby name as user types
+  const lobbyNameInput = document.getElementById('lobby-name-input');
+  if (lobbyNameInput) {
+    // Restore saved name on load
+    const saved = localStorage.getItem('bardak_player_name');
+    if (saved && !lobbyNameInput.value) lobbyNameInput.value = saved;
+    lobbyNameInput.addEventListener('input', () => {
+      const v = lobbyNameInput.value.trim();
+      if (v) localStorage.setItem('bardak_player_name', v);
+    });
+  }
 
   // Mobile log toggle
   const logToggleBtn = document.getElementById('log-toggle-btn');
@@ -233,6 +257,12 @@ function startGame(playerDefs) {
     selectedCards: [],          // card ids selected by human
     selectedAttackPairIdx: null // which table pair human selected for defense
   };
+  // Clear DOM log from previous game
+  const logEl = document.getElementById('game-log');
+  if (logEl) logEl.innerHTML = '';
+  // Show debug button only when there are bots
+  const hasBot = playerDefs.some(p => p.isBot);
+  document.getElementById('debug-btn').style.display = hasBot ? '' : 'none';
   showScreen('game-screen');
   addLog('=== Новая игра ===', 'round');
   dealRound();
@@ -265,6 +295,7 @@ function dealRound() {
   G.transferThrowPhase = false;
   G.humanTransferThrowPassed = false;
   G.nakiGiveToHandPending = [];
+  G.nakiGiveToHandLimit = 0;
   G.defenderTaking = false;
   G.phase = 'deal';
 
@@ -659,7 +690,12 @@ function setupNakidyvanie(defenderIdx) {
   G.nakiPending = [];
 
   // Phase 1: give-to-hand (attack-table nominals) → Phase 2: nakidyvanie (score nominal)
-  G.nakiGiveToHandPending = G.nakiJokerMode ? [] : buildGiveToHandOrder(defenderIdx);
+  // Limit: total cards given cannot exceed defender's original hand count (secret card NOT counted)
+  const defenseCardsPlayed = G.tablePairs.filter(p => p.defense && p.defender === defenderIdx).length;
+  const handOnlyCount = G.players[defenderIdx].hand.length + defenseCardsPlayed;
+  const attackCardsOnTable = G.tablePairs.filter(p => !p.isNaki).length;
+  G.nakiGiveToHandLimit = Math.max(0, handOnlyCount - attackCardsOnTable);
+  G.nakiGiveToHandPending = (G.nakiJokerMode || G.nakiGiveToHandLimit === 0) ? [] : buildGiveToHandOrder(defenderIdx);
 
   if (G.nakiGiveToHandPending.length > 0) {
     renderAll();
@@ -850,14 +886,19 @@ function doNakiPass(playerIdx) {
 // Give one or more cards to the defender's hand (give-to-hand phase)
 function doNakiGiveToHand(throwerIdx, cards) {
   const defenderIdx = G.defenderIdx;
-  for (const card of (Array.isArray(cards) ? cards : [cards])) {
+  const all = Array.isArray(cards) ? cards : [cards];
+  const allowed = Math.min(all.length, G.nakiGiveToHandLimit);
+  const cardsToGive = all.slice(0, allowed);
+  for (const card of cardsToGive) {
     removeFromHand(throwerIdx, card);
     G.players[defenderIdx].hand.push(card);
     sortHand(defenderIdx);
     addLog(`${G.players[throwerIdx].name} даёт в руку ${cardStr(card)} → ${G.players[defenderIdx].name}`, 'take');
   }
+  G.nakiGiveToHandLimit -= cardsToGive.length;
   G.nakiGiveToHandPending = G.nakiGiveToHandPending.filter(i => i !== throwerIdx);
-  if (G.nakiGiveToHandPending.length === 0) {
+  if (G.nakiGiveToHandPending.length === 0 || G.nakiGiveToHandLimit === 0) {
+    G.nakiGiveToHandPending = [];
     startNakidyvaniePhase();
   } else {
     renderAll();
@@ -1270,13 +1311,14 @@ function botDoGiveToHand(botIdx) {
   );
   const keepForNaki = nakiCandidates.length > 0 ? 1 : 0;
   let nakiKept = 0;
+  const limit = G.nakiGiveToHandLimit || 0;
   const giveCards = G.players[botIdx].hand.filter(c => {
     if (!tableNominals.has(cardNominal(c))) return false;
     if (cardNominal(c) === scoreNom) {
       if (nakiKept < keepForNaki) { nakiKept++; return false; }
     }
     return true;
-  });
+  }).slice(0, limit);
   setTimeout(() => {
     if (G.nakiGiveToHandPending.length > 0 && G.nakiGiveToHandPending[0] === botIdx) {
       if (giveCards.length > 0) {
@@ -1334,6 +1376,7 @@ function saveUndoState() {
     nakiJokerMode: G.nakiJokerMode,
     nakiJokerThrowers: [...G.nakiJokerThrowers],
     nakiGiveToHandPending: [...G.nakiGiveToHandPending],
+    nakiGiveToHandLimit: G.nakiGiveToHandLimit,
     transferThrowQueue: [...G.transferThrowQueue],
     transferThrowPhase: G.transferThrowPhase,
     humanTransferThrowPassed: G.humanTransferThrowPassed,
@@ -1371,6 +1414,7 @@ function applyUndo() {
   G.nakiJokerMode = s.nakiJokerMode;
   G.nakiJokerThrowers = s.nakiJokerThrowers;
   G.nakiGiveToHandPending = s.nakiGiveToHandPending;
+  G.nakiGiveToHandLimit = s.nakiGiveToHandLimit;
   G.transferThrowQueue = s.transferThrowQueue;
   G.transferThrowPhase = s.transferThrowPhase;
   G.humanTransferThrowPassed = s.humanTransferThrowPassed;
@@ -2056,10 +2100,14 @@ function humanCardClick(card) {
   } else if (G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length > 0 && G.nakiGiveToHandPending[0] === hi) {
     // Multi-select in give-to-hand phase
     const tableNoms = getTableNominals();
+    const limit = G.nakiGiveToHandLimit || 0;
     if (tableNoms.has(cardNominal(card))) {
       const idx = UI.selectedCards.indexOf(card.id);
-      if (idx === -1) UI.selectedCards.push(card.id);
-      else UI.selectedCards.splice(idx, 1);
+      if (idx === -1) {
+        if (UI.selectedCards.length < limit) UI.selectedCards.push(card.id);
+      } else {
+        UI.selectedCards.splice(idx, 1);
+      }
       renderHumanHand();
       renderActionButtons();
     }
@@ -2252,10 +2300,11 @@ function renderActionButtons() {
   if (G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length > 0 && G.nakiGiveToHandPending[0] === hi) {
     const tableNoms = getTableNominals();
     const giveMatches = p.hand.filter(c => tableNoms.has(cardNominal(c)));
-    if (giveMatches.length > 0) {
+    const limit = G.nakiGiveToHandLimit || 0;
+    if (limit > 0 && giveMatches.length > 0) {
       const selected = giveMatches.filter(c => UI.selectedCards.includes(c.id));
-      const toGive = selected.length > 0 ? selected : giveMatches;
-      const label = selected.length > 0 ? `Дать в руку (${selected.length})` : `Дать все в руку (${giveMatches.length})`;
+      const toGive = selected.length > 0 ? selected : giveMatches.slice(0, limit);
+      const label = selected.length > 0 ? `Дать в руку (${selected.length})` : `Дать все в руку (${Math.min(giveMatches.length, limit)})`;
       container.appendChild(btn(label, 'btn-transfer', () => {
         UI.selectedCards = [];
         mpAction('nakiGiveToHand', { throwerIdx: hi, cardIds: toGive.map(c => c.id) },
