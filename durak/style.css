@@ -895,6 +895,145 @@ html, body {
   color: #f0ede0;
 }
 
+/* ===================== LOBBY BROWSER ===================== */
+.lobby-container {
+  max-width: 520px;
+  padding: 28px 36px;
+}
+
+.lobby-text-input {
+  width: 100%;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 1rem;
+}
+.lobby-text-input:focus { outline: 2px solid var(--gold); }
+
+.lobby-rooms-section {
+  margin-bottom: 14px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.lobby-rooms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.lobby-rooms-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+}
+
+.refresh-btn {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.2);
+  color: var(--text-dim);
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition: all 0.2s;
+  touch-action: manipulation;
+}
+.refresh-btn:hover { border-color: var(--gold); color: var(--gold); transform: rotate(30deg); }
+.refresh-btn.spinning { animation: spin 0.5s ease; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.rooms-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+
+.rooms-loading, .rooms-empty, .rooms-error {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+.rooms-error { color: #e74c3c; }
+
+.room-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  transition: background 0.15s;
+}
+.room-item:last-child { border-bottom: none; }
+.room-item:hover { background: rgba(255,255,255,0.04); }
+
+.room-item-info { flex: 1; min-width: 0; }
+.room-item-header { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+
+.room-item-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(46,204,113,0.2);
+  color: #2ecc71;
+  border: 1px solid rgba(46,204,113,0.3);
+  border-radius: 10px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.room-item-count.full {
+  background: rgba(231,76,60,0.2);
+  color: #e74c3c;
+  border-color: rgba(231,76,60,0.3);
+}
+
+.room-item-host {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-item-players {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-join-btn {
+  background: var(--btn-transfer);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 7px 16px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: filter 0.15s;
+  touch-action: manipulation;
+}
+.room-join-btn:hover { filter: brightness(1.15); }
+.room-join-btn:disabled { background: #444; color: #888; cursor: not-allowed; filter: none; }
+
+.lobby-create-btn { background: var(--btn-transfer); margin-top: 0; }
+.lobby-solo-btn { background: rgba(255,255,255,0.1); color: var(--text-dim); margin-top: 8px; }
+.lobby-solo-btn:hover { background: rgba(255,255,255,0.18); }
+
 /* ===================== LOG TOGGLE (desktop hidden) ===================== */
 .log-toggle-btn { display: none; }
 .log-close-btn { display: none; }

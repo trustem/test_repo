@@ -482,15 +482,91 @@ function mpAfterRender() {
   mpSyncState();
 }
 
+// ─── LOBBY BROWSER ───────────────────────────────────────────
+var mpRoomsUnsubscribe = null;
+
+function mpStartBrowsing() {
+  if (mpRoomsUnsubscribe) return; // already listening
+
+  mpRoomsUnsubscribe = db.collection('rooms')
+    .where('status', '==', 'lobby')
+    .onSnapshot(function(snapshot) {
+      var rooms = [];
+      var cutoff = Date.now() - 3 * 60 * 60 * 1000; // rooms older than 3h hidden
+      snapshot.forEach(function(doc) {
+        var data = doc.data();
+        if (data.createdAt > cutoff) {
+          rooms.push(Object.assign({ code: doc.id }, data));
+        }
+      });
+      rooms.sort(function(a, b) { return b.createdAt - a.createdAt; });
+      mpRenderRoomsList(rooms);
+    }, function(err) {
+      console.error('mpStartBrowsing error:', err);
+      var list = document.getElementById('rooms-list');
+      if (list) list.innerHTML = '<div class="rooms-error">Не удалось загрузить список игр</div>';
+    });
+}
+
+function mpStopBrowsing() {
+  if (mpRoomsUnsubscribe) {
+    mpRoomsUnsubscribe();
+    mpRoomsUnsubscribe = null;
+  }
+}
+
+function mpRenderRoomsList(rooms) {
+  var list = document.getElementById('rooms-list');
+  if (!list) return;
+
+  if (rooms.length === 0) {
+    list.innerHTML = '<div class="rooms-empty">Нет открытых игр — создайте первую!</div>';
+    return;
+  }
+
+  list.innerHTML = rooms.map(function(room) {
+    var players = room.players || [];
+    var maxPlayers = room.maxPlayers || 4;
+    var isFull = players.length >= maxPlayers;
+    var hostName = players[0] ? escHtml(players[0].name) : '?';
+    var otherNames = players.slice(1).map(function(p) { return escHtml(p.name); });
+    var playersText = otherNames.length > 0
+      ? hostName + ', ' + otherNames.join(', ')
+      : hostName + ' (один)';
+
+    return '<div class="room-item">' +
+      '<div class="room-item-info">' +
+        '<div class="room-item-header">' +
+          '<span class="room-item-count' + (isFull ? ' full' : '') + '">' + players.length + '/' + maxPlayers + '</span>' +
+          '<span class="room-item-host">' + hostName + '</span>' +
+        '</div>' +
+        '<div class="room-item-players">' + escHtml(playersText) + '</div>' +
+      '</div>' +
+      '<button class="room-join-btn" data-code="' + room.code + '"' + (isFull ? ' disabled' : '') + '>' +
+        (isFull ? 'Заполнено' : 'Войти') +
+      '</button>' +
+    '</div>';
+  }).join('');
+
+  list.querySelectorAll('.room-join-btn:not([disabled])').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var code = btn.dataset.code;
+      var name = (document.getElementById('lobby-name-input').value || '').trim() || 'Игрок';
+      mpStopBrowsing();
+      mpJoinRoom(code, name);
+    });
+  });
+}
+
 // ─── LOBBY SETUP ─────────────────────────────────────────────
 function mpSetupLobby() {
   var soloBtn = document.getElementById('solo-btn');
   var createBtn = document.getElementById('create-room-btn');
-  var joinBtn = document.getElementById('join-room-btn');
-  var joinCodeInput = document.getElementById('join-code-input');
+  var refreshBtn = document.getElementById('refresh-rooms-btn');
 
   if (soloBtn) {
     soloBtn.addEventListener('click', function() {
+      mpStopBrowsing();
       mp.enabled = false;
       showScreen('setup-screen');
     });
@@ -499,28 +575,16 @@ function mpSetupLobby() {
   if (createBtn) {
     createBtn.addEventListener('click', async function() {
       var name = (document.getElementById('lobby-name-input').value || '').trim() || 'Хост';
-      var maxPlayersEl = document.querySelector('#room-size-btns .count-btn.active');
-      var maxPlayers = maxPlayersEl ? +maxPlayersEl.dataset.count : 4;
-      await mpCreateRoom(name, maxPlayers);
+      mpStopBrowsing();
+      await mpCreateRoom(name, 4); // default 4 players; host can change in waiting room
     });
   }
 
-  if (joinBtn) {
-    joinBtn.addEventListener('click', async function() {
-      var code = (joinCodeInput ? joinCodeInput.value : '').trim().toUpperCase();
-      var name = (document.getElementById('lobby-name-input').value || '').trim() || 'Игрок';
-      if (code.length !== 4) {
-        alert('Введите 4-значный код комнаты');
-        return;
-      }
-      await mpJoinRoom(code, name);
-    });
-  }
-
-  // Auto-uppercase for join code input
-  if (joinCodeInput) {
-    joinCodeInput.addEventListener('input', function() {
-      joinCodeInput.value = joinCodeInput.value.toUpperCase();
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', function() {
+      refreshBtn.classList.add('spinning');
+      setTimeout(function() { refreshBtn.classList.remove('spinning'); }, 500);
+      // Force re-render from current snapshot (listener is live, just visual feedback)
     });
   }
 
@@ -531,7 +595,6 @@ function mpSetupLobby() {
         b.classList.remove('active');
       });
       btn.classList.add('active');
-      // Update maxPlayers in Firestore if we're already in a room
       if (mp.isHost && mp.roomRef) {
         mp.roomRef.update({ maxPlayers: +btn.dataset.count });
       }
@@ -546,6 +609,8 @@ function mpSetupLobby() {
     });
   }
 
+  // Start live lobby browsing
+  mpStartBrowsing();
 }
 
 // ─── RESET MULTIPLAYER STATE ─────────────────────────────────
@@ -563,6 +628,8 @@ function mpResetState() {
   mp.logRenderedCount = 0;
   mpGameScreenInitialized = false;
   showScreen('lobby-screen');
+  // Resume live lobby browsing
+  mpStartBrowsing();
 }
 
 // ─── INIT ON DOM READY ───────────────────────────────────────

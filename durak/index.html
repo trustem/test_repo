@@ -10,21 +10,28 @@
 
 <!-- LOBBY SCREEN -->
 <div id="lobby-screen" class="screen active">
-  <div class="setup-container">
+  <div class="setup-container lobby-container">
     <h1 class="game-title">Бардак</h1>
     <h2 class="game-subtitle">Переводной Дурак</h2>
-    <div class="setup-section" style="margin-bottom:16px">
+
+    <div class="setup-section" style="margin-bottom:14px">
       <label class="setup-label">Ваше имя:</label>
       <input id="lobby-name-input" type="text" maxlength="12" placeholder="Игрок"
-             style="width:100%;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:#f0ede0;padding:8px 12px;font-size:1rem">
+             class="lobby-text-input">
     </div>
-    <button id="solo-btn" class="start-button" style="margin-bottom:12px">Играть с ботами</button>
-    <button id="create-room-btn" class="start-button" style="background:#2980b9;margin-bottom:12px">Создать комнату</button>
-    <div style="display:flex;gap:8px;margin-top:4px">
-      <input id="join-code-input" type="text" maxlength="4" placeholder="Код комнаты"
-             style="flex:1;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:#f0ede0;padding:10px;font-size:1rem;text-transform:uppercase">
-      <button id="join-room-btn" class="start-button" style="width:auto;padding:10px 20px;margin-top:0">Войти</button>
+
+    <div class="lobby-rooms-section">
+      <div class="lobby-rooms-header">
+        <span class="lobby-rooms-title">Открытые игры</span>
+        <button id="refresh-rooms-btn" class="refresh-btn" title="Обновить">↻</button>
+      </div>
+      <div id="rooms-list" class="rooms-list">
+        <div class="rooms-loading">Подключение...</div>
+      </div>
     </div>
+
+    <button id="create-room-btn" class="start-button lobby-create-btn">+ Создать игру</button>
+    <button id="solo-btn" class="start-button lobby-solo-btn">Играть с ботами</button>
   </div>
 </div>
 
