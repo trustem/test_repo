@@ -394,6 +394,12 @@ function prevActiveIdx(fromIdx) {
   return fromIdx;
 }
 
+// Left neighbor of defender = physical left neighbor regardless of transfer chain.
+// This is who may throw cards as the "attacking" side.
+function leftThrowerIdx() {
+  return prevActiveIdx(G.defenderIdx);
+}
+
 // Right neighbor of defender (clockwise past defender, skipping defender itself)
 // In a 3-player game where only attacker and defender remain, attacker IS the right neighbor too
 function rightNeighborOfDefender() {
@@ -472,11 +478,6 @@ function nominalOnTable(nominal) {
     if (cardNominal(pair.attack) === nominal) return true;
     if (pair.defense && cardNominal(pair.defense) === nominal) return true;
   }
-  // Also include nominal of defender's revealed secret card
-  const def = G.players[G.defenderIdx];
-  if (def && def.secretRevealed && def.secretCard && !def.secretTaken) {
-    if (cardNominal(def.secretCard) === nominal) return true;
-  }
   return false;
 }
 
@@ -493,8 +494,7 @@ function getAttackLimit() {
   // Defender's hand count at start of their defense turn =
   // current hand + cards already played in defense
   const defenseCardsPlayed = G.tablePairs.filter(p => p.defense && p.defender === G.defenderIdx).length;
-  const secretBonus = (defender.secretRevealed && defender.secretCard && !defender.secretTaken) ? 1 : 0;
-  const defHandCount = defender.hand.length + defenseCardsPlayed + secretBonus;
+  const defHandCount = defender.hand.length + defenseCardsPlayed;
   // Max attack cards that can be placed in total this turn
   const max = G.firstBeaten ? 6 : 5;
   return Math.min(max, defHandCount);
@@ -541,14 +541,17 @@ function doDefend(defenderIdx, attackPairIdx, defenseCard) {
   removeFromHand(defenderIdx, defenseCard);
   addLog(`${G.players[defenderIdx].name} отбивает ${cardStr(pair.attack)} → ${cardStr(defenseCard)}`, 'defense');
 
-  // If hand is now empty and secret card hasn't been taken yet — reveal it immediately
+  // If hand is now empty and secret card hasn't been taken yet — move it to hand immediately
   const dp = G.players[defenderIdx];
-  if (dp.hand.length === 0 && dp.secretCard && !dp.secretTaken && !dp.secretRevealed) {
-    dp.secretRevealed = true;
-    addLog(`${dp.name} открывает потайную карту: ${cardStr(dp.secretCard)}`, 'system');
+  if (dp.hand.length === 0 && dp.secretCard && !dp.secretTaken) {
+    const sc = dp.secretCard;
+    dp.hand.push(sc);
+    dp.secretCard = null;
+    dp.secretTaken = true;
+    dp.secretRevealed = false;
+    sortHand(defenderIdx);
+    addLog(`${dp.name} открывает потайную карту: ${cardStr(sc)}`, 'system');
   }
-
-  G.firstBeaten = true;
 
   if (allBeaten()) {
     // All cards beaten — attacker (or transfer thrower) can throw more or declare done
@@ -581,8 +584,7 @@ function doTransfer(defenderIdx, card) {
   // New defender = next active after current defender
   const newDefender = nextActiveIdx(G.defenderIdx);
   // New attacker stays the same? No — in переводной: the attack passes
-  // The person who just transferred becomes the "last attacker" effectively
-  // Original attacker (G.attackerIdx) stays for throwing purposes
+  // Throwing rights pass to the physical left neighbor of the new defender (leftThrowerIdx()).
 
   G.defenderIdx = newDefender;
   addLog(`Теперь защищается: ${G.players[newDefender].name}`, 'transfer');
@@ -743,7 +745,9 @@ function buildNakiOrder(defenderIdx, scoreNom) {
   return order;
 }
 
-// Build priority order for give-to-hand phase (players who have attack-table-nominal cards)
+// Build priority order for give-to-hand phase.
+// Only the two physical neighbors of the defender can give cards to hand,
+// regardless of transfer chain. Left neighbor first, then right neighbor.
 function buildGiveToHandOrder(defenderIdx) {
   const tableNominals = getTableNominals();
   if (tableNominals.size === 0) return [];
@@ -751,22 +755,12 @@ function buildGiveToHandOrder(defenderIdx) {
     && idx !== defenderIdx
     && G.players[idx].hand.some(c => tableNominals.has(cardNominal(c)));
 
+  const leftNeighbor  = prevActiveIdx(defenderIdx);
+  const rightNeighbor = nextActiveIdx(defenderIdx);
+
   const order = [];
-  const decisive = G.nakiDecisiveIdx;
-  if (decisive !== null && decisive !== defenderIdx && hasCard(decisive)) order.push(decisive);
-  for (let i = G.transferChain.length - 1; i >= 0; i--) {
-    const idx = G.transferChain[i];
-    if (!order.includes(idx) && idx !== defenderIdx && hasCard(idx)) order.push(idx);
-  }
-  if (!order.includes(G.attackerIdx) && G.attackerIdx !== defenderIdx && hasCard(G.attackerIdx)) order.push(G.attackerIdx);
-  let cur = nextActiveIdx(G.attackerIdx);
-  let count = 0;
-  while (count < G.players.length) {
-    if (!order.includes(cur) && cur !== defenderIdx && hasCard(cur)) order.push(cur);
-    cur = nextActiveIdx(cur);
-    count++;
-    if (cur === G.attackerIdx) break;
-  }
+  if (leftNeighbor !== defenderIdx && hasCard(leftNeighbor))   order.push(leftNeighbor);
+  if (rightNeighbor !== defenderIdx && rightNeighbor !== leftNeighbor && hasCard(rightNeighbor)) order.push(rightNeighbor);
   return order;
 }
 
@@ -1145,6 +1139,11 @@ function removeFromHand(playerIdx, card) {
   if (idx !== -1) p.hand.splice(idx, 1);
 }
 
+// Returns all cards a player can throw (just their hand)
+function getThrowableCandidates(playerIdx) {
+  return [...G.players[playerIdx].hand];
+}
+
 // ─── BOT AI ──────────────────────────────────────────────────
 function scheduleBot() {
   if (G.gameOver) return;
@@ -1173,10 +1172,11 @@ function doBotAction() {
         botDoRightNeighborThrow(rn);
       }
     } else if (!G.attackDone) {
-      // Only attack/throw if attacker hasn't declared done yet
-      const attacker = G.players[G.attackerIdx];
+      // Only the physical left neighbor of the defender may attack/throw
+      const lt = leftThrowerIdx();
+      const attacker = G.players[lt];
       if (attacker && attacker.isBot) {
-        botDoAttack(G.attackerIdx);
+        botDoAttack(lt);
       }
     }
   } else if (phase === 'defense') {
@@ -1210,7 +1210,7 @@ function botDoAttack(botIdx) {
     }
   } else if (allBeaten()) {
     // Can throw more cards as additional attack
-    const throwable = G.players[botIdx].hand.filter(c => nominalOnTable(cardNominal(c)));
+    const throwable = getThrowableCandidates(botIdx).filter(c => nominalOnTable(cardNominal(c)));
     const toThrow = botChooseThrow(throwable);
     if (toThrow && G.tablePairs.length < getAttackLimit()) {
       doThrow(botIdx, toThrow);
@@ -1224,7 +1224,7 @@ function botDoAttack(botIdx) {
 }
 
 function botDoRightNeighborThrow(botIdx) {
-  const throwable = G.players[botIdx].hand.filter(c => nominalOnTable(cardNominal(c)));
+  const throwable = getThrowableCandidates(botIdx).filter(c => nominalOnTable(cardNominal(c)));
   const toThrow = botChooseThrow(throwable);
   if (toThrow && G.tablePairs.length < getAttackLimit()) {
     doThrow(botIdx, toThrow);
@@ -1492,16 +1492,16 @@ function showUndoApproval() {
 
 // ─── TURN FLOW HELPERS ───────────────────────────────────────
 function declareAttackDone(playerIdx) {
-  // Only attacker can declare done (right-neighbor finishes via doRightNeighborPass)
-  if (playerIdx !== G.attackerIdx) return;
+  // Only the current left thrower (physical left neighbor of defender) can declare done
+  if (playerIdx !== leftThrowerIdx()) return;
 
   if (!G.attackDone) {
     G.attackDone = true;
     addLog(`${G.players[playerIdx].name} завершает атаку`, 'system');
 
-    // Check if right neighbor exists and is different from attacker
+    // Check if right neighbor exists and is different from left thrower
     const rn = rightNeighborOfDefender();
-    if (rn !== G.attackerIdx) {
+    if (rn !== leftThrowerIdx()) {
       G.rightNeighborThrowing = true;
       G.phase = 'attack'; // right neighbor can still throw
       renderAll();
@@ -1579,7 +1579,7 @@ function isHumanTurn() {
   const hi = humanPlayerIdx();
   if (hi === -1) return false;
   if (G.phase === 'attack') {
-    if (!G.attackDone && G.attackerIdx === hi) return true;
+    if (!G.attackDone && leftThrowerIdx() === hi) return true;
     if (G.attackDone && G.rightNeighborThrowing && rightNeighborOfDefender() === hi) return true;
   }
   if (G.phase === 'defense' && G.defenderIdx === hi) return true;
@@ -1623,6 +1623,41 @@ function sortAllHands() {
 }
 
 // ─── RENDER ──────────────────────────────────────────────────
+// Maps playerIdx → CSS position name (populated by renderPlayers each render)
+var playerPosMap = {};
+
+// Approximate center coordinates (x%, y% of viewport) for each position
+const TABLE_POS_COORDS = {
+  'top':       [50, 16],
+  'top-left':  [23, 21],
+  'top-right': [77, 21],
+  'left':      [10, 50],
+  'right':     [90, 50],
+  'bottom':    [50, 82],
+};
+
+function updateTablePosition() {
+  const tableArea = document.querySelector('.table-area');
+  if (!tableArea || !G) return;
+
+  const aPos = playerPosMap[leftThrowerIdx()];
+  const dPos = playerPosMap[G.defenderIdx];
+
+  // No cards or positions unknown → neutral center
+  if (!aPos || !dPos || !G.tablePairs || G.tablePairs.length === 0) {
+    tableArea.style.left = '50%';
+    tableArea.style.top  = '55%';
+    return;
+  }
+
+  const [ax, ay] = TABLE_POS_COORDS[aPos] || [50, 50];
+  const [dx, dy] = TABLE_POS_COORDS[dPos] || [50, 50];
+
+  // Midpoint between attacker and defender
+  tableArea.style.left = `${(ax + dx) / 2}%`;
+  tableArea.style.top  = `${(ay + dy) / 2}%`;
+}
+
 function renderAll() {
   renderTrump();
   renderDeck();
@@ -1631,6 +1666,7 @@ function renderAll() {
   renderHumanHand();
   renderActionButtons();
   renderPhase();
+  updateTablePosition();
   if (typeof mpAfterRender === 'function') mpAfterRender();
 }
 
@@ -1668,10 +1704,32 @@ function renderTrump() {
 }
 
 function renderDeck() {
+  const count = G.deck.length;
   const el = document.getElementById('deck-count');
-  el.textContent = G.deck.length;
+  if (el) el.textContent = count;
+
   const vis = document.getElementById('deck-visual');
-  vis.style.opacity = G.deck.length > 0 ? '1' : '0.3';
+  if (vis) {
+    vis.style.opacity = count > 0 ? '1' : '0.3';
+    // Volumetric size class based on card count
+    vis.className = 'deck-visual ' + (
+      count >= 32 ? 'size-xl' :
+      count >= 22 ? 'size-lg' :
+      count >= 12 ? 'size-md' :
+      count >= 5  ? 'size-sm' :
+      count >= 1  ? 'size-xs' : 'size-empty'
+    );
+  }
+
+  // Discard pile count
+  const discardEl = document.getElementById('discard-count');
+  if (discardEl) discardEl.textContent = G.discardPile ? G.discardPile.length : 0;
+  const discardVis = document.getElementById('discard-visual');
+  if (discardVis) {
+    const n = G.discardPile ? G.discardPile.length : 0;
+    discardVis.style.opacity = n > 0 ? '1' : '0.35';
+    discardVis.classList.toggle('has-cards', n > 0);
+  }
 }
 
 function renderNakiCards(playerIdx) {
@@ -1685,94 +1743,129 @@ function renderNakiCards(playerIdx) {
     const sym = SUIT_SYM[card.suit];
     return `<div class="naki-card-mini ${isRed ? 'red' : 'black'}" title="Накинуто: ${card.rank}${sym}">${card.rank}<br>${sym}</div>`;
   }).join('');
-  return `<div class="naki-cards-row">${cards}</div>`;
+  return `<div class="naki-panel">
+    <div class="naki-panel-label">Накидка</div>
+    <div class="naki-cards-row">${cards}</div>
+  </div>`;
 }
+
+// Position map: non-human players in clockwise order from human's left
+const PLAYER_POS_MAP = {
+  1: ['top'],
+  2: ['top-left', 'top-right'],
+  3: ['left', 'top', 'right'],
+  4: ['left', 'top-left', 'top-right', 'right'],
+  5: ['left', 'top-left', 'top', 'top-right', 'right'],
+};
 
 function renderPlayers() {
   const area = document.getElementById('players-area');
   area.innerHTML = '';
 
   const hi = humanPlayerIdx();
-  const nonHuman = G.players.filter((_, i) => i !== hi);
-
-  if (nonHuman.length === 0) return;
+  const n = G.players.length;
 
   const currentAttackerIdx = G.transferChain && G.transferChain.length > 0
     ? G.transferChain[G.transferChain.length - 1]
     : G.attackerIdx;
 
-  const row = document.createElement('div');
-  row.className = 'players-top-row';
+  // Reset position map for this render cycle
+  playerPosMap = {};
+  if (hi !== -1) playerPosMap[hi] = 'bottom';
 
-  nonHuman.forEach((p) => {
-    const pi = G.players.indexOf(p);
+  // Non-human players in clockwise seat order starting from the player after human
+  const nonHumanOrdered = [];
+  for (let i = 1; i < n; i++) {
+    const idx = (hi + i) % n;
+    nonHumanOrdered.push({ p: G.players[idx], pi: idx });
+  }
+
+  const positions = PLAYER_POS_MAP[nonHumanOrdered.length] || PLAYER_POS_MAP[5];
+
+  nonHumanOrdered.forEach(({ p, pi }, posIdx) => {
+    const pos = positions[posIdx] || 'top';
+    const isVertical = pos === 'left' || pos === 'right';
+
+    playerPosMap[pi] = pos; // record position for table placement
+
     const box = document.createElement('div');
-    box.className = 'player-info-box';
+    box.className = `player-info-box player-pos-${pos}`;
     if (pi === currentAttackerIdx) box.classList.add('attacker');
     if (pi === G.defenderIdx) box.classList.add('defender');
     if (p.exited) box.classList.add('exited');
 
-    let badge = '';
-    if (pi === G.defenderIdx) badge = '<span class="player-role-badge badge-defender">Защита</span>';
-    else if (pi === currentAttackerIdx) badge = '<span class="player-role-badge badge-attacker">Атака</span>';
-    else if (p.exited) badge = '<span class="player-role-badge badge-out">Вышел</span>';
+    let roleBadge = '';
+    if (pi === G.defenderIdx) roleBadge = '<span class="player-role-badge badge-defender">Защита</span>';
+    else if (pi === currentAttackerIdx) roleBadge = '<span class="player-role-badge badge-attacker">Атака</span>';
+    else if (p.exited) roleBadge = '<span class="player-role-badge badge-out">Вышел</span>';
 
-    const scoreDots = renderScoreDots(p.score);
-
-    // Show bot cards as backs (or face-up in debug mode)
-    let cardBacks = '';
+    // Card backs
+    let cardsHtml = '';
     if (p.isBot) {
-      let cardsHtml;
+      let handHtml;
       if (debugMode) {
-        cardsHtml = p.hand.map(card => {
+        handHtml = p.hand.map(card => {
           const lbl = cardLabel(card);
           const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
           const colorCls = isJoker(card) ? 'joker' : (isRed ? 'red' : 'black');
           return `<div class="card-mini-debug ${colorCls}" title="${cardStr(card)}">${lbl.top}${lbl.suit}</div>`;
         }).join('');
       } else {
-        cardsHtml = p.hand.map(() => '<div class="card-back-mini"></div>').join('');
+        handHtml = p.hand.map(() => '<div class="card-back-mini"></div>').join('');
       }
-      let secret = '';
+
+      let secretHtml = '';
       if (!p.secretTaken && p.secretCard) {
         if (p.secretRevealed || debugMode) {
           const lbl = cardLabel(p.secretCard);
           const isRed = p.secretCard.suit === 'hearts' || p.secretCard.suit === 'diamonds';
           const colorCls = isJoker(p.secretCard) ? 'joker' : (isRed ? 'red' : 'black');
-          const title = p.secretRevealed ? `Потайная (открыта): ${cardStr(p.secretCard)}` : `Потайная (отладка): ${cardStr(p.secretCard)}`;
-          if (debugMode) {
-            secret = `<div class="card-mini-debug ${colorCls}" style="border:2px dashed #9333ea" title="${title}">${lbl.top}</div>`;
-          } else {
-            secret = `<div class="card-back-mini secret revealed ${isRed ? 'red' : 'black'}" title="${title}">${lbl.top}${lbl.center}</div>`;
-          }
+          const title = p.secretRevealed
+            ? `Потайная (открыта): ${cardStr(p.secretCard)}`
+            : `Потайная (отладка): ${cardStr(p.secretCard)}`;
+          const debugBorder = debugMode ? ' style="border:2px dashed #9333ea"' : '';
+          secretHtml = `<div class="secret-card-wrap">
+            <div class="card-back-mini secret-card ${p.secretRevealed ? 'secret-revealed' : ''} ${debugMode ? colorCls : ''}"${debugBorder} title="${title}">
+              ${p.secretRevealed || debugMode ? lbl.top : ''}
+            </div>
+            <span class="secret-label">⚠ Потайная</span>
+          </div>`;
         } else {
-          secret = `<div class="card-back-mini secret" title="Потайная карта (скрыта)"></div>`;
+          secretHtml = `<div class="secret-card-wrap">
+            <div class="card-back-mini secret-card" title="Потайная карта (скрыта)"></div>
+            <span class="secret-label">⚠ Потайная</span>
+          </div>`;
         }
       }
-      cardBacks = `<div class="bot-cards">${cardsHtml}${secret}</div>`;
+
+      const wrapCls = isVertical ? 'bot-cards-wrap vertical' : 'bot-cards-wrap';
+      cardsHtml = `<div class="${wrapCls}">
+        <div class="bot-cards">${handHtml}</div>${secretHtml}
+      </div>`;
     }
 
     const nakiHtml = renderNakiCards(pi);
+    const countStr = p.hand.length + (p.secretCard && !p.secretTaken ? '+1' : '');
+    const scoreDots = renderScoreDots(p.score);
 
     box.innerHTML = `
-      <div class="player-name">${escHtml(p.name)}</div>
-      ${badge}
-      <div class="player-card-count">${p.hand.length} карт${p.secretCard && !p.secretTaken ? ' +🤫' : ''}</div>
-      <div class="player-score-display">${scoreDots} (${SCORE_LADDER[p.score]})</div>
-      ${cardBacks}
+      ${cardsHtml}
+      <div class="player-nameplate">
+        <span class="player-nameplate-name">${escHtml(p.name)}</span>
+        <span class="player-nameplate-count">Карт: ${countStr}</span>
+      </div>
+      <div class="player-score-mini">${scoreDots}</div>
+      ${roleBadge}
       ${nakiHtml}
     `;
-    row.appendChild(box);
+    area.appendChild(box);
   });
-  area.appendChild(row);
 
-  // Human info row
-  const hRow = document.createElement('div');
-  hRow.className = 'players-top-row';
+  // Human player badge (bottom-center, above hand)
   if (hi !== -1) {
     const hp = G.players[hi];
     const hbox = document.createElement('div');
-    hbox.className = 'player-info-box';
+    hbox.className = 'player-info-box player-pos-bottom';
     if (hi === currentAttackerIdx) hbox.classList.add('attacker');
     if (hi === G.defenderIdx) hbox.classList.add('defender');
     if (isHumanTurn()) hbox.classList.add('active-turn');
@@ -1781,15 +1874,17 @@ function renderPlayers() {
     if (hi === G.defenderIdx) hbadge = '<span class="player-role-badge badge-defender">Защита</span>';
     else if (hi === currentAttackerIdx) hbadge = '<span class="player-role-badge badge-attacker">Атака</span>';
 
+    const hCountStr = hp.hand.length + (hp.secretCard && !hp.secretTaken ? '+1' : '');
     hbox.innerHTML = `
-      <div class="player-name">${escHtml(hp.name)} (Вы)</div>
+      <div class="player-nameplate human">
+        <span class="player-nameplate-name">Вы</span>
+        <span class="player-nameplate-count">Карт: ${hCountStr}</span>
+      </div>
       ${hbadge}
-      <div class="player-score-display">${renderScoreDots(hp.score)} (${SCORE_LADDER[hp.score]})</div>
       ${renderNakiCards(hi)}
     `;
-    hRow.appendChild(hbox);
+    area.appendChild(hbox);
   }
-  area.appendChild(hRow);
 }
 
 function renderScoreDots(score) {
@@ -1811,7 +1906,7 @@ function renderTable() {
 
   // DnD: table area drop zone for attack (empty table or allBeaten)
   const isHumanAttacking = hi !== -1 && isHumanTurn() && (
-    (G.phase === 'attack' && !G.attackDone && G.attackerIdx === hi) ||
+    (G.phase === 'attack' && !G.attackDone && leftThrowerIdx() === hi) ||
     (G.phase === 'attack' && G.attackDone && G.rightNeighborThrowing && rightNeighborOfDefender() === hi)
   );
 
@@ -1844,14 +1939,14 @@ function renderTable() {
       dragState = null;
       UI.selectedCards = [];
       // Determine what kind of action
-      if (G.tablePairs.length === 0 && G.phase === 'attack' && !G.attackDone && G.attackerIdx === hi) {
+      if (G.tablePairs.length === 0 && G.phase === 'attack' && !G.attackDone && leftThrowerIdx() === hi) {
         mpAction('attack', { playerIdx: hi, cardIds: [card.id] },
           () => { saveUndoState(); doAttack(hi, [card]); });
       } else if (allBeaten() && nominalOnTable(cardNominal(card)) && G.tablePairs.length < getAttackLimit()) {
         if (G.attackDone && G.rightNeighborThrowing && rightNeighborOfDefender() === hi) {
           mpAction('throw', { playerIdx: hi, cardId: card.id },
             () => { saveUndoState(); doThrow(hi, card); });
-        } else if (!G.attackDone && G.attackerIdx === hi) {
+        } else if (!G.attackDone && leftThrowerIdx() === hi) {
           mpAction('throw', { playerIdx: hi, cardId: card.id },
             () => { saveUndoState(); doThrow(hi, card); });
         }
@@ -1927,7 +2022,7 @@ function renderTable() {
               pair.defender = hi;
               srcPair.defense = null;
               srcPair.defender = undefined;
-              G.firstBeaten = G.tablePairs.some(p => p.defense !== null);
+              // firstBeaten is only set by doDiscard(), don't change it here
               UI.selectedAttackPairIdx = null;
               UI.selectedCards = [];
               renderAll();
@@ -2033,26 +2128,18 @@ function renderHumanHand() {
     hand.appendChild(el);
   });
 
-  // Secret card — visible face-up only when hand is empty (or already revealed to all)
+  // Secret card — shown face-up only when hand is empty (not yet taken into hand)
   if (p.secretCard && !p.secretTaken) {
     const sec = document.createElement('div');
-    const handEmpty = p.hand.length === 0;
-    if (p.secretRevealed) {
-      // Revealed to everyone — show face-up with yellow border
-      const lbl = cardLabel(p.secretCard);
-      const isRed = p.secretCard.suit === 'hearts' || p.secretCard.suit === 'diamonds';
-      sec.className = `card small revealed-secret ${isRed ? 'red' : 'black'}`;
-      sec.title = 'Потайная карта (открыта всем)';
-      sec.innerHTML = `<div class="card-top">${lbl.top}</div><div class="card-center">${lbl.center}</div>`;
-    } else if (handEmpty) {
-      // Hand empty — owner now sees their own secret face-up
+    if (p.hand.length === 0) {
+      // Owner sees their own secret face-up while waiting for draw phase
       const lbl = cardLabel(p.secretCard);
       const isRed = p.secretCard.suit === 'hearts' || p.secretCard.suit === 'diamonds';
       sec.className = `card small own-secret ${isRed ? 'red' : 'black'}`;
       sec.title = 'Ваша потайная карта';
       sec.innerHTML = `<div class="card-top">${lbl.top}</div><div class="card-center">${lbl.center}</div>`;
     } else {
-      // Hand not empty — show as full-size card back (unknown)
+      // Hand not empty — show as card back (hidden)
       sec.className = 'card small secret-back';
       sec.title = 'Ваша потайная карта (скрыта)';
     }
@@ -2185,7 +2272,7 @@ function getNextBotActionDescription() {
       const rn = rightNeighborOfDefender();
       return `${G.players[rn]?.name} — правый сосед`;
     }
-    if (!G.attackDone) return `${G.players[G.attackerIdx]?.name} — атака`;
+    if (!G.attackDone) return `${G.players[leftThrowerIdx()]?.name} — атака`;
   }
   if (phase === 'defense') return `${G.players[G.defenderIdx]?.name} — защита`;
   if (phase === 'nakidyvanie') {
@@ -2224,7 +2311,7 @@ function renderActionButtons() {
 
   const p = G.players[hi];
 
-  if (G.phase === 'attack' && !G.attackDone && hi === G.attackerIdx) {
+  if (G.phase === 'attack' && !G.attackDone && leftThrowerIdx() === hi) {
     // Throw/attack button: only if table has cards and nominal matches, or no cards yet
     const selectedCards = UI.selectedCards.map(id => p.hand.find(c => c.id === id)).filter(Boolean);
     const canAtk = selectedCards.length > 0 && canAttackWith(selectedCards);
@@ -2390,7 +2477,7 @@ function renderPhase() {
   const hi = humanPlayerIdx();
 
   if (hi !== -1 && isHumanTurn()) {
-    if (G.phase === 'attack' && !G.attackDone && G.attackerIdx === hi) {
+    if (G.phase === 'attack' && !G.attackDone && leftThrowerIdx() === hi) {
       if (G.defenderTaking) hintText = 'Защищающийся берёт — можете подкинуть ещё или нажать Готово';
       else if (G.tablePairs.length === 0) hintText = 'Выберите карты для атаки';
       else if (allBeaten()) hintText = 'Можете подкинуть ещё или нажать Готово';
@@ -2403,7 +2490,7 @@ function renderPhase() {
       hintText = 'Ваша очередь накидывать';
     }
   } else if (hi !== -1 && !isHumanTurn()) {
-    const cur = G.phase === 'attack' ? G.players[G.attackerIdx]?.name :
+    const cur = G.phase === 'attack' ? G.players[leftThrowerIdx()]?.name :
                 G.phase === 'defense' ? G.players[G.defenderIdx]?.name : '';
     if (cur) hintText = `Ход: ${cur}`;
   }

@@ -29,6 +29,25 @@ var mp = {
   logRenderedCount: 0,
 };
 
+var mpHeartbeatInterval = null;
+
+function mpStartHeartbeat() {
+  mpStopHeartbeat();
+  // Update hostLastSeen every 20 seconds so clients can detect disconnect
+  mpHeartbeatInterval = setInterval(function() {
+    if (mp.isHost && mp.roomRef) {
+      mp.roomRef.update({ hostLastSeen: Date.now() }).catch(function() {});
+    }
+  }, 20000);
+}
+
+function mpStopHeartbeat() {
+  if (mpHeartbeatInterval) {
+    clearInterval(mpHeartbeatInterval);
+    mpHeartbeatInterval = null;
+  }
+}
+
 // ─── UID MANAGEMENT ──────────────────────────────────────────
 function mpGetUid() {
   var uid = sessionStorage.getItem('bardak_uid');
@@ -77,7 +96,10 @@ async function mpCreateRoom(hostName, maxPlayers) {
       gameState: null,
       pendingAction: null,
       createdAt: Date.now(),
+      hostLastSeen: Date.now(),
     });
+
+    mpStartHeartbeat();
 
     document.getElementById('room-size-btns').parentElement.style.display = 'block';
     document.getElementById('start-game-btn').style.display = 'block';
@@ -179,6 +201,13 @@ function mpListenRoom() {
 
 // ─── UPDATE WAITING SCREEN ───────────────────────────────────
 function mpUpdateWaitingScreen(data) {
+  // Non-host: detect if host disconnected (heartbeat stale > 40s)
+  if (!mp.isHost && data.hostLastSeen && Date.now() - data.hostLastSeen > 40000) {
+    alert('Хост отключился. Возврат в лобби.');
+    mpResetState();
+    return;
+  }
+
   var players = data.players || [];
   var maxPlayers = data.maxPlayers || 4;
 
@@ -491,12 +520,15 @@ function mpStartBrowsing() {
     .where('status', '==', 'lobby')
     .onSnapshot(function(snapshot) {
       var rooms = [];
-      var cutoff = Date.now() - 3 * 60 * 60 * 1000; // rooms older than 3h hidden
+      var now = Date.now();
+      var ageCutoff = now - 3 * 60 * 60 * 1000;  // 3h — absolute max age
+      var staleCutoff = now - 40 * 1000;           // 40s without heartbeat = host gone
       snapshot.forEach(function(doc) {
         var data = doc.data();
-        if (data.createdAt > cutoff) {
-          rooms.push(Object.assign({ code: doc.id }, data));
-        }
+        if (data.createdAt <= ageCutoff) return;
+        // Hide room if host heartbeat is stale (host disconnected)
+        if (data.hostLastSeen && data.hostLastSeen < staleCutoff) return;
+        rooms.push(Object.assign({ code: doc.id }, data));
       });
       rooms.sort(function(a, b) { return b.createdAt - a.createdAt; });
       mpRenderRoomsList(rooms);
@@ -615,6 +647,7 @@ function mpSetupLobby() {
 
 // ─── RESET MULTIPLAYER STATE ─────────────────────────────────
 function mpResetState() {
+  mpStopHeartbeat();
   if (mp.unsubscribe) {
     mp.unsubscribe();
     mp.unsubscribe = null;

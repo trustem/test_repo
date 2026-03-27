@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Бардак — Переводной Дурак</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -82,32 +85,40 @@
 <div id="game-screen" class="screen">
   <div class="top-bar">
     <span class="top-bar-title">Бардак</span>
-    <div class="deck-info">
-      <div id="deck-visual" class="deck-visual"><div class="deck-back"></div></div>
-      <span class="deck-label">Колода:</span>
-      <span id="deck-count" class="deck-count">40</span>
-    </div>
     <button id="new-game-btn" class="new-game-btn">Новая игра</button>
     <button id="debug-btn" class="debug-btn">🔍 Отладка</button>
-    <button id="log-toggle-btn" class="log-toggle-btn" title="Журнал">📋</button>
   </div>
 
-  <div id="trump-panel" class="trump-panel">
-    <div class="trump-panel-label">КОЗЫРЬ</div>
-    <div id="trump-panel-suit" class="trump-panel-suit"></div>
-    <div id="trump-card-panel" class="trump-card-panel"></div>
-    <div id="untouchable-panel" class="untouchable-panel"></div>
-  </div>
-
+  <!-- Players positioned around the oval -->
   <div id="players-area" class="players-area"></div>
 
+  <!-- Center: discard pile + deck + trump card -->
+  <div id="center-info" class="center-info">
+    <div class="pile-zone">
+      <div id="discard-visual" class="discard-visual"></div>
+      <div class="pile-label">Бита: <span id="discard-count">0</span></div>
+    </div>
+    <div class="pile-zone deck-zone">
+      <div class="deck-stack">
+        <div id="deck-visual" class="deck-visual"><div class="deck-back"></div></div>
+        <div id="trump-card-panel" class="trump-card-rotated"></div>
+      </div>
+      <div class="pile-label">Колода: <span id="deck-count">40</span></div>
+      <div class="trump-info">Козырь: <span id="trump-panel-suit" class="trump-panel-suit"></span></div>
+    </div>
+  </div>
+  <div id="untouchable-panel" class="untouchable-panel"></div>
+
+  <!-- Table cards (attack / defense) -->
   <div class="table-area">
     <div id="table-cards" class="table-cards"></div>
     <div id="action-hint" class="action-hint"></div>
   </div>
 
+  <!-- Action buttons above hand -->
   <div id="action-buttons" class="action-buttons"></div>
 
+  <!-- Human hand -->
   <div class="human-area">
     <div id="human-hand" class="human-hand"></div>
   </div>
@@ -123,6 +134,10 @@
       </div>
     </div>
   </div>
+
+  <!-- Log toggle: bottom-right corner (?) -->
+  <button id="log-toggle-btn" class="log-toggle-btn" title="Журнал">?</button>
+
   <div id="phase-indicator" style="display:none"></div>
 </div>
 
