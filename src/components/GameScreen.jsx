@@ -190,8 +190,8 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
         <div className="my-secret-card-mobile card secret-back" />
       )}
 
-      {/* Thrown cards (накинуто) — mini-fan above player hand, mobile only */}
-      {isMobileView && hi !== -1 && (() => {
+      {/* Thrown cards (накинуто) — mini-fan above player hand */}
+      {hi !== -1 && (() => {
         const nakedCards = humanPlayer?.nakiCards ?? [];
         if (nakedCards.length === 0) return null;
         return (

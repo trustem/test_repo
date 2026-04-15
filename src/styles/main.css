@@ -1306,7 +1306,11 @@ html, body, #root {
 
 /* ─── Thrown cards (накинуто вам) — mini-fan above player hand ─── */
 .thrown-to-me-zone {
-  display: none; /* mobile only — shown via mobile override */
+  position: absolute;
+  z-index: 20;
+  /* desktop: above human hand area */
+  bottom: calc(268px + var(--sab) + 8px);
+  left: max(8px, var(--sal));
 }
 @media (max-width: 600px) {
   /* Secret card floats between hand and Бита at the right side */
@@ -1323,11 +1327,8 @@ html, body, #root {
   }
 
   .thrown-to-me-zone {
-    display: block;
-    position: absolute;
-    left: 8px;
     bottom: calc(196px + var(--sab) + 8px);
-    z-index: 20;
+    left: 8px;
   }
   .thrown-to-me-label {
     font-size: 9px; font-weight: 700;

@@ -822,8 +822,9 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     G.tablePairs.push({ attack: card, defense: null, attacker: throwerIdx, isNaki: true });
     checkGameEnd(defenderIdx);
     if (!G.gameOver) {
-      if (G.nakiPending.length === 0) afterNakiPending();
-      else { notify(); scheduleBot(); }
+      notify(); // show thrown card before finishing
+      if (G.nakiPending.length === 0) setTimeout(afterNakiPending, 900);
+      else scheduleBot();
     }
   }
 
@@ -840,7 +841,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       if (G.gameOver) return;
     }
     G.nakiPending = [];
-    afterNakiPending();
+    notify(); // show all thrown cards before finishing
+    setTimeout(afterNakiPending, 900);
   }
 
   function doNakiPass(playerIdx) {
