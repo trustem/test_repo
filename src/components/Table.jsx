@@ -80,7 +80,7 @@ export default function Table({ G, UI, engine, humanPlayerIdx }) {
         onDragLeave={isHumanAttacking && !isMobile ? handleTableDragLeave : undefined}
         onDrop={isHumanAttacking && !isMobile ? handleTableDrop : undefined}
       >
-        {G.tablePairs.map((pair, pairIdx) => (
+        {G.tablePairs.filter(p => !p.isNaki).map((pair, pairIdx) => (
           <TablePair
             key={pairIdx}
             pair={pair}
