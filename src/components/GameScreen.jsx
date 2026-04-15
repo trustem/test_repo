@@ -192,7 +192,7 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
 
       {/* Thrown cards (накинуто) — mini-fan above player hand */}
       {hi !== -1 && (() => {
-        const nakedCards = humanPlayer?.nakiCards ?? [];
+        const nakedCards = G.nakiDisplayCards ?? [];
         if (nakedCards.length === 0) return null;
         return (
           <div className="thrown-to-me-zone">

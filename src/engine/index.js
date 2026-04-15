@@ -101,6 +101,7 @@ export function newGameState(playerDefs) {
     nakiGiveToHandPending: [],
     nakiGiveToHandLimit: 0,
     defenderTaking: false,
+    nakiDisplayCards: [],   // cards thrown at human defender — persists through round end
     transferThrowQueue: [],
     transferThrowPhase: false,
     humanTransferThrowPassed: false,
@@ -486,6 +487,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     G.nakiGiveToHandPending = [];
     G.nakiGiveToHandLimit = 0;
     G.defenderTaking = false;
+    G.nakiDisplayCards = [];
     G.phase = 'deal';
     G.humanJustTook = false;
 
@@ -539,6 +541,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     if (allowed <= 0) return false;
     cards = cards.slice(0, allowed);
     addLog(`${G.players[playerIdx].name} атакует: ${cards.map(cardStr).join(', ')}`, 'attack');
+    // Clear naki display on first attack of new round
+    if (G.tablePairs.length === 0) G.nakiDisplayCards = [];
     for (const card of cards) {
       removeFromHand(playerIdx, card);
       G.tablePairs.push({ attack: card, defense: null, attacker: playerIdx });
@@ -820,11 +824,12 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       G.nakiPending = [];
     }
     G.tablePairs.push({ attack: card, defense: null, attacker: throwerIdx, isNaki: true });
+    // Snapshot for UI — persists through finishNakidyvanie so React always sees it
+    G.nakiDisplayCards = [...G.players[defenderIdx].nakiCards];
     checkGameEnd(defenderIdx);
     if (!G.gameOver) {
-      notify(); // show thrown card before finishing
-      if (G.nakiPending.length === 0) setTimeout(afterNakiPending, 900);
-      else scheduleBot();
+      if (G.nakiPending.length === 0) afterNakiPending();
+      else { notify(); scheduleBot(); }
     }
   }
 
@@ -841,8 +846,9 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       if (G.gameOver) return;
     }
     G.nakiPending = [];
-    notify(); // show all thrown cards before finishing
-    setTimeout(afterNakiPending, 900);
+    // Snapshot for UI
+    G.nakiDisplayCards = [...G.players[defenderIdx].nakiCards];
+    afterNakiPending();
   }
 
   function doNakiPass(playerIdx) {
