@@ -834,35 +834,55 @@ html, body, #root {
   cursor: default;
 }
 
+/* Ghost card — semi-transparent target nominal */
+.naki-ghost-card {
+  position: absolute;
+  border-radius: 5px;
+  border: 1.5px dashed rgba(255,255,255,.4);
+  background: rgba(255,255,255,.1);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900;
+  color: rgba(255,255,255,.55);
+}
+/* Bot size */
+.naki-ghost-bot {
+  width: 34px; height: 48px;
+  font-size: .8rem;
+}
+
 /* Naki panel */
 .naki-panel {
   margin-top: 6px;
-  background: rgba(160,20,20,.22);
-  border: 1px solid rgba(231,76,60,.5);
-  border-radius: 7px;
-  padding: 4px 6px 5px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  box-shadow: 0 0 12px rgba(231,76,60,.25);
 }
-.naki-panel-label {
-  font-size: .72rem; font-weight: 700;
-  color: #f87171; letter-spacing: .5px; text-transform: uppercase;
-  white-space: nowrap;
-}
-.naki-cards-row { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; }
+.naki-panel-label { display: none; }
+.naki-cards-row { display: block; }
 .naki-card-mini {
   width: 34px; height: 48px; background: #fff;
-  border-radius: 5px; border: 2px solid rgba(231,76,60,.6);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-size: .65rem; font-weight: 900; line-height: 1.15;
-  box-shadow: 0 2px 8px rgba(0,0,0,.4), 0 0 6px rgba(231,76,60,.3);
+  border-radius: 5px; border: 1.5px solid rgba(0,0,0,.18);
+  box-shadow: 0 2px 6px rgba(0,0,0,.35);
+  overflow: hidden;
 }
-.naki-card-mini.red   { color: var(--red-suit); }
-.naki-card-mini.black { color: #111; }
-.naki-card-mini.joker { color: var(--joker-color); }
+.naki-card-rank {
+  position: absolute; top: 2px; left: 3px;
+  font-size: .55rem; font-weight: 900; line-height: 1;
+}
+.naki-card-suit {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: .95rem; line-height: 1;
+}
+.naki-card-mini.red .naki-card-rank,
+.naki-card-mini.red .naki-card-suit   { color: var(--red-suit); }
+.naki-card-mini.black .naki-card-rank,
+.naki-card-mini.black .naki-card-suit { color: #111; }
+.naki-card-mini.joker {
+  display: flex; align-items: center; justify-content: center;
+  font-size: .9rem; color: var(--joker-color);
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    ACTION BUTTONS — above human hand
@@ -1365,6 +1385,93 @@ html, body, #root {
 .empty-deck-trump-badge.red .empty-deck-trump-sym { color: #c0392b; }
 
 /* ─── Trump announcement popup ────────────────────────────────────── */
+/* ─── DICE ROLL OVERLAY ─────────────────────────────────── */
+.dice-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.75);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 300;
+}
+.dice-box {
+  background: #122840;
+  border: 2px solid rgba(255,255,255,.22);
+  border-radius: 18px;
+  padding: 24px 20px 20px;
+  min-width: 260px; max-width: 92vw;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0,0,0,.7);
+}
+.dice-title {
+  font-size: 1.25rem; font-weight: 900; color: #fff; margin-bottom: 4px;
+}
+.dice-subtitle {
+  font-size: .8rem; color: rgba(255,255,255,.55); margin-bottom: 18px;
+}
+.dice-players-row {
+  display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 14px;
+}
+.dice-player {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px 10px; border-radius: 10px;
+  background: rgba(255,255,255,.08);
+  min-width: 68px;
+  transition: background .25s, border .25s;
+  border: 1.5px solid transparent;
+}
+.dice-player.dice-winner {
+  background: rgba(255,215,0,.2);
+  border-color: gold;
+}
+.dice-player.dice-tied {
+  background: rgba(255,130,50,.18);
+  border-color: #f94;
+}
+.dice-player-name {
+  font-size: .7rem; font-weight: 700; color: rgba(255,255,255,.85);
+  max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dice-pair { display: flex; gap: 4px; }
+.die { font-size: 2.5rem; line-height: 1; filter: drop-shadow(0 2px 4px rgba(0,0,0,.6)); }
+.dice-sum { font-size: 1.05rem; font-weight: 900; color: #fff; }
+.dice-result-text {
+  font-size: .9rem; font-weight: 700; color: #ffd700; min-height: 1.2em;
+}
+
+/* ─── TRUMP CHOICE MODAL ─────────────────────────────────── */
+.trump-choice-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.75);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 300;
+}
+.trump-choice-box {
+  background: #122840;
+  border: 2px solid rgba(255,255,255,.22);
+  border-radius: 18px;
+  padding: 28px 28px 24px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0,0,0,.7);
+}
+.trump-choice-title {
+  font-size: 1.1rem; font-weight: 900; color: #fff; margin-bottom: 14px;
+}
+.trump-choice-timer {
+  font-size: 2.4rem; font-weight: 900; color: #ffd700; margin-bottom: 16px; line-height: 1;
+}
+.trump-choice-suits {
+  display: flex; gap: 14px; justify-content: center;
+}
+.trump-suit-btn {
+  width: 68px; height: 68px; border-radius: 14px; border: none;
+  font-size: 2.1rem; cursor: pointer; font-weight: 900;
+  box-shadow: 0 4px 14px rgba(0,0,0,.45);
+  transition: transform .1s, box-shadow .15s;
+}
+.trump-suit-btn:active { transform: scale(.9); }
+.trump-suit-btn.spades, .trump-suit-btn.clubs { background: #fff; color: #111; }
+.trump-suit-btn.hearts, .trump-suit-btn.diamonds { background: #fff; color: #e8192c; }
+.trump-suit-btn:hover { box-shadow: 0 0 18px rgba(255,215,0,.55); }
+
 .trump-announcement-overlay {
   position: fixed; inset: 0; z-index: 2000;
   display: flex; align-items: center; justify-content: center;
@@ -1385,6 +1492,7 @@ html, body, #root {
 .trump-announcement-suit.spades,
 .trump-announcement-suit.clubs   { color: #ecf0f1; }
 .trump-announcement-text { font-size: 1.1rem; font-weight: 800; color: #fff; letter-spacing: .5px; }
+.trump-announcement-player { font-size: .85rem; font-weight: 600; color: rgba(255,255,255,.75); margin-top: 4px; }
 @keyframes trump-fade {
   0%   { opacity: 0; transform: scale(.8); }
   20%  { opacity: 1; transform: scale(1.05); }
@@ -1648,17 +1756,23 @@ html, body, #root {
   .human-naki-cards-row {
     position: relative;
     height: 42px;
+    /* width set inline */
+  }
+  .human-naki-cards-row .naki-ghost-card {
+    position: absolute;
+    top: 0;
+    width: 30px; height: 42px;
+    font-size: .75rem;
   }
   .human-naki-cards-row .naki-card-mini {
-    position: absolute !important;
-    top: 0 !important;
-    width: 30px !important;
-    height: 42px !important;
-    font-size: .68rem !important;
-    line-height: 1.2 !important;
-    background: #fff !important;
-    border: 1.5px solid rgba(0,0,0,.18) !important;
-    box-shadow: 1px 2px 4px rgba(0,0,0,.35) !important;
+    position: absolute;
+    top: 0;
+    width: 30px;
+    height: 42px;
+    box-shadow: 1px 2px 5px rgba(0,0,0,.4);
+  }
+  .human-naki-cards-row .naki-card-suit {
+    font-size: .82rem;
   }
 
   /* Human hand: arc fan at bottom */

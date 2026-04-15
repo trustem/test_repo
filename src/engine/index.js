@@ -120,6 +120,14 @@ export function newGameState(playerDefs) {
     humanJustTook: false,
     pendingNewTrump: null,
     trumpAnnouncement: null,
+    dicePhase: false,
+    diceRollKey: 0,
+    diceParticipants: [],
+    diceResults: {},
+    postDiceAction: null,
+    trumpChoicePhase: false,
+    trumpChooserIdx: -1,
+    pendingDiceAfterDraw: false,
   };
 }
 
@@ -189,6 +197,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
   function isHumanTurn() {
     const hi = humanPlayerIdx();
     if (hi === -1) return false;
+    if (G.trumpChoicePhase && G.trumpChooserIdx === hi) return true;
     if (G.transferThrowPhase && G.transferThrowQueue.length > 0 && G.transferThrowQueue[0] === hi) return true;
     if (G.phase === 'attack') {
       if (!G.attackDone && leftThrowerIdx() === hi) return true;
@@ -357,10 +366,10 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
         p.hand.push(card);
         if (G.secretTrumpCard) {
           if (isJoker(G.secretTrumpCard)) {
-            addLog(`Секретный козырь — джокер! ${p.name} получает джокер.`, 'system');
+            addLog(`Секретный козырь — джокер! ${p.name} получает джокер. Бросают кости...`, 'system');
             p.hand.push(G.secretTrumpCard);
-            G.trumpAnnouncement = { suit: G.trumpSuit, key: Date.now() };
             G.secretTrumpCard = null;
+            G.pendingDiceAfterDraw = true;
           } else {
             addLog(`Козырная карта взята. Новый козырь: ${SUIT_SYM[G.secretTrumpCard.suit]}`, 'system');
             G.pendingNewTrump = G.secretTrumpCard;
@@ -374,11 +383,17 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       }
     }
     if (p.hand.length === 0 && !p.secretTaken && p.secretCard) {
-      p.hand.push(p.secretCard);
+      const sc = p.secretCard;
+      p.hand.push(sc);
       p.secretTaken = true;
       p.secretRevealed = false;
       addLog(`${p.name} берёт секретную карту`, 'system');
-      G.trumpAnnouncement = { suit: G.trumpSuit, key: Date.now() };
+      G.trumpAnnouncement = {
+        suit: G.trumpSuit,
+        key: Date.now(),
+        playerName: p.name,
+        secretOnly: true,
+      };
     }
     sortHand(playerIdx);
   }
@@ -496,6 +511,13 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     G.nakiDefenderIdx = null;
     G.phase = 'deal';
     G.humanJustTook = false;
+    G.dicePhase = false;
+    G.diceParticipants = [];
+    G.diceResults = {};
+    G.postDiceAction = null;
+    G.trumpChoicePhase = false;
+    G.trumpChooserIdx = -1;
+    G.pendingDiceAfterDraw = false;
 
     G.players.forEach(p => {
       p.hand = [];
@@ -524,9 +546,12 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     G.trumpCard = G.deck[0] || null;
 
     if (G.trumpCard && isJoker(G.trumpCard)) {
-      const suitIdx = Math.floor(Math.random() * 4);
-      G.trumpSuit = SUITS[suitIdx];
-      addLog(`Козырной джокер! Выпал козырь: ${SUIT_SYM[G.trumpSuit]}`, 'system');
+      G.trumpSuit = null;
+      addLog('Козырной джокер! Бросают кости для выбора козыря...', 'system');
+      startDiceRoll('deal');
+      G.phase = 'dice';
+      notify();
+      return;
     } else if (G.trumpCard) {
       G.trumpSuit = G.trumpCard.suit;
     } else {
@@ -543,6 +568,26 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
   }
 
   // ─── ACTIONS ─────────────────────────────────────────────────
+  // Reveal secret card if hand is empty after playing (works for any role)
+  function revealSecretIfNeeded(playerIdx) {
+    const p = G.players[playerIdx];
+    if (p.hand.length === 0 && p.secretCard && !p.secretTaken) {
+      const sc = p.secretCard;
+      p.hand.push(sc);
+      p.secretCard = null;
+      p.secretTaken = true;
+      p.secretRevealed = false;
+      sortHand(playerIdx);
+      addLog(`${p.name} открывает потайную карту: ${cardStr(sc)}`, 'system');
+      G.trumpAnnouncement = {
+        suit: G.trumpSuit,
+        key: Date.now(),
+        playerName: p.name,
+        secretOnly: true,
+      };
+    }
+  }
+
   function doAttack(playerIdx, cards) {
     const allowed = getAttackLimit() - G.tablePairs.length;
     if (allowed <= 0) return false;
@@ -552,6 +597,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       removeFromHand(playerIdx, card);
       G.tablePairs.push({ attack: card, defense: null, attacker: playerIdx });
     }
+    revealSecretIfNeeded(playerIdx);
     G.phase = 'defense';
     notify();
     scheduleBot();
@@ -564,17 +610,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     pair.defender = defenderIdx;
     removeFromHand(defenderIdx, defenseCard);
     addLog(`${G.players[defenderIdx].name} отбивает ${cardStr(pair.attack)} → ${cardStr(defenseCard)}`, 'defense');
-    const dp = G.players[defenderIdx];
-    if (dp.hand.length === 0 && dp.secretCard && !dp.secretTaken) {
-      const sc = dp.secretCard;
-      dp.hand.push(sc);
-      dp.secretCard = null;
-      dp.secretTaken = true;
-      dp.secretRevealed = false;
-      sortHand(defenderIdx);
-      addLog(`${dp.name} открывает потайную карту: ${cardStr(sc)}`, 'system');
-      G.trumpAnnouncement = { suit: G.trumpSuit, key: Date.now() };
-    }
+    revealSecretIfNeeded(defenderIdx);
     if (allBeaten()) G.phase = 'attack';
     notify();
     scheduleBot();
@@ -611,6 +647,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     addLog(`${G.players[throwerIdx].name} подкидывает: ${cardStr(card)}`, 'attack');
     removeFromHand(throwerIdx, card);
     G.tablePairs.push({ attack: card, defense: null, attacker: throwerIdx });
+    revealSecretIfNeeded(throwerIdx);
     // Check if thrower can still throw more
     const stillHasMore = G.players[throwerIdx].hand.some(c => cardNominal(c) === G.transferThrowNominal)
       && G.tablePairs.length < getAttackLimit();
@@ -688,6 +725,13 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     addUniq(savedDefenderIdx);
     G.players.forEach((p, i) => { if (!p.exited) addUniq(i); });
     for (const idx of drawOrder) drawUpTo6(idx);
+    if (G.pendingDiceAfterDraw) {
+      G.pendingDiceAfterDraw = false;
+      startDiceRoll('draw');
+      G.phase = 'dice';
+      notify();
+      return;
+    }
     if (G.pendingNewTrump) {
       G.trumpSuit = G.pendingNewTrump.suit;
       G.pendingNewTrump = null;
@@ -707,6 +751,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     removeFromHand(throwerIdx, card);
     G.tablePairs.push({ attack: card, defense: null, attacker: throwerIdx });
     if (!G.throwers.includes(throwerIdx)) G.throwers.push(throwerIdx);
+    revealSecretIfNeeded(throwerIdx);
     G.phase = G.defenderTaking ? 'attack' : 'defense';
     notify();
     scheduleBot();
@@ -958,6 +1003,13 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     addUniq(savedAttackerIdx);
     G.players.forEach((p, i) => { if (!p.exited && i !== defenderIdx) addUniq(i); });
     for (const idx of drawOrder) drawUpTo6(idx);
+    if (G.pendingDiceAfterDraw) {
+      G.pendingDiceAfterDraw = false;
+      startDiceRoll('draw');
+      G.phase = 'dice';
+      notify();
+      return;
+    }
     if (G.pendingNewTrump) {
       G.trumpSuit = G.pendingNewTrump.suit;
       G.pendingNewTrump = null;
@@ -1024,7 +1076,22 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
   // ─── BOT AI ──────────────────────────────────────────────────
   function doBotAction() {
     if (!G || G.gameOver) return;
-    if (G.phase === 'deal' || G.phase === 'draw' || G.phase === 'roundover') return;
+
+    // Trump choice — bot picks best suit
+    if (G.trumpChoicePhase) {
+      const chooser = G.trumpChooserIdx;
+      if (chooser !== -1 && G.players[chooser] && G.players[chooser].isBot) {
+        const bot = G.players[chooser];
+        const sc = { spades: 0, hearts: 0, diamonds: 0, clubs: 0 };
+        for (const c of bot.hand) { if (!isJoker(c)) sc[c.suit] = (sc[c.suit] || 0) + 1; }
+        const best = Object.entries(sc).sort((a, b) => b[1] - a[1])[0]?.[0] || SUITS[Math.floor(Math.random() * 4)];
+        setTimeout(() => { if (G.trumpChoicePhase && G.trumpChooserIdx === chooser) doChooseTrump(chooser, best); }, BOT_DELAY);
+      }
+      return;
+    }
+
+    if (G.dicePhase) return; // UI animates dice, nothing for bots to do
+    if (G.phase === 'deal' || G.phase === 'draw' || G.phase === 'roundover' || G.phase === 'dice') return;
     if (isHumanTurn()) return;
     undoState = null;
 
@@ -1168,6 +1235,77 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       if (card) doNakiThrow(botIdx, card);
       else doNakiPass(botIdx);
     }
+  }
+
+  // ─── DICE & TRUMP CHOICE ─────────────────────────────────────
+  function rollDie() { return Math.floor(Math.random() * 6) + 1; }
+
+  function startDiceRoll(postAction) {
+    const participants = G.players.map((p, i) => i).filter(i => !G.players[i].exited);
+    const results = {};
+    for (const idx of participants) results[idx] = [rollDie(), rollDie()];
+    G.dicePhase = true;
+    G.diceRollKey = (G.diceRollKey || 0) + 1;
+    G.diceParticipants = participants;
+    G.diceResults = results;
+    G.postDiceAction = postAction;
+    G.trumpChoicePhase = false;
+    G.trumpChooserIdx = -1;
+    addLog('Бросают кости для выбора козыря!', 'system');
+  }
+
+  function resolveDiceRoll() {
+    if (!G.dicePhase) return;
+    const sums = {};
+    for (const idx of G.diceParticipants) {
+      const r = G.diceResults[idx];
+      sums[idx] = r ? r[0] + r[1] : 0;
+    }
+    const maxSum = Math.max(...Object.values(sums));
+    const winners = G.diceParticipants.filter(idx => sums[idx] === maxSum);
+    if (winners.length === 1) {
+      G.dicePhase = false;
+      G.trumpChoicePhase = true;
+      G.trumpChooserIdx = winners[0];
+      addLog(`${G.players[winners[0]].name} выиграл бросок — выбирает козырь`, 'system');
+      notify();
+      if (G.players[winners[0]].isBot) scheduleBot();
+    } else {
+      addLog(`Ничья у ${winners.map(i => G.players[i].name).join(', ')}! Переброска.`, 'system');
+      const results = {};
+      for (const idx of winners) results[idx] = [rollDie(), rollDie()];
+      G.diceParticipants = winners;
+      G.diceResults = results;
+      G.diceRollKey = (G.diceRollKey || 0) + 1;
+      notify();
+    }
+  }
+
+  function doChooseTrump(playerIdx, suit) {
+    if (!G.trumpChoicePhase || G.trumpChooserIdx !== playerIdx) return false;
+    if (!SUITS.includes(suit)) return false;
+    G.trumpSuit = suit;
+    G.trumpChoicePhase = false;
+    G.trumpChooserIdx = -1;
+    addLog(`${G.players[playerIdx].name} выбирает козырь: ${SUIT_SYM[suit]}`, 'system');
+    G.trumpAnnouncement = { suit, key: Date.now(), playerName: G.players[playerIdx].name };
+    const postAction = G.postDiceAction;
+    G.postDiceAction = null;
+    if (postAction === 'deal') {
+      G.attackerIdx = findFirstAttacker();
+      G.defenderIdx = nextActiveIdx(G.attackerIdx);
+      addLog(`Козырь: ${SUIT_SYM[suit]}. Первый атакует: ${G.players[G.attackerIdx].name}`, 'system');
+      sortAllHands();
+      G.phase = 'attack';
+    } else {
+      sortAllHands();
+      G.phase = 'attack';
+      checkExits();
+      revalidateAttackerDefender();
+    }
+    notify();
+    if (!G.gameOver) scheduleBot();
+    return true;
   }
 
   // ─── HUMAN INTERACTION HELPERS ───────────────────────────────
@@ -1353,6 +1491,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     selectAttackPair,
     hasUndoState,
     applyUndo,
+    resolveDiceRoll: () => resolveDiceRoll(),
+    doChooseTrump: (playerIdx, suit) => doChooseTrump(playerIdx, suit),
     showUndoApproval: () => {}, // handled by React component
     getDebugMode,
     setDebugMode,

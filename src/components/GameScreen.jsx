@@ -6,26 +6,58 @@ import DeckPile from './DeckPile';
 import DiscardPile from './DiscardPile';
 import ActionButtons from './ActionButtons';
 import GameLog from './GameLog';
-import { SUIT_SYM, isJoker } from '../engine/index.js';
+import DiceRollOverlay from './DiceRollOverlay';
+import { SUIT_SYM, isJoker, SCORE_LADDER, SUITS } from '../engine/index.js';
 
-// Small stacked pile of naki cards — face up, each offset slightly so all are visible
-function NakiPile({ cards }) {
+// Horizontal fan: ghost shown only when no cards thrown yet; cards shift sideways
+const NAKI_OFFSET = 14;
+function NakiPile({ cards, ghostNominal }) {
   const n = cards.length;
-  const containerW = 34 + (n - 1) * 10;
+  const containerW = n === 0 ? 30 : 30 + (n - 1) * NAKI_OFFSET;
   return (
     <div className="human-naki-strip">
       <div className="human-naki-cards-row" style={{ width: containerW }}>
+        {n === 0 && (
+          <div className="naki-ghost-card" style={{ left: 0, top: 0, zIndex: 0, width: 30, height: 42 }}>
+            {ghostNominal}
+          </div>
+        )}
         {cards.map((card, i) => {
           if (isJoker(card)) return (
-            <div key={card.id ?? i} className="naki-card-mini joker" style={{ left: i * 10, zIndex: i }}>🃏</div>
+            <div key={card.id ?? i} className="naki-card-mini joker" style={{ left: i * NAKI_OFFSET, top: 0, zIndex: i + 1 }}>🃏</div>
           );
           const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
           return (
-            <div key={card.id ?? i} className={`naki-card-mini${isRed ? ' red' : ' black'}`} style={{ left: i * 10, zIndex: i }}>
-              {card.rank}<br />{SUIT_SYM[card.suit]}
+            <div key={card.id ?? i} className={`naki-card-mini${isRed ? ' red' : ' black'}`} style={{ left: i * NAKI_OFFSET, top: 0, zIndex: i + 1 }}>
+              <span className="naki-card-rank">{card.rank}</span>
+              <span className="naki-card-suit">{SUIT_SYM[card.suit]}</span>
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function TrumpChoiceModal({ chooserName, isHuman, timeLeft, onChoose }) {
+  return (
+    <div className="trump-choice-overlay">
+      <div className="trump-choice-box">
+        <div className="trump-choice-title">
+          {isHuman ? 'Выбери козырь' : `${chooserName} выбирает козырь...`}
+        </div>
+        {isHuman && (
+          <>
+            <div className="trump-choice-timer">{timeLeft}</div>
+            <div className="trump-choice-suits">
+              {['spades', 'hearts', 'diamonds', 'clubs'].map(suit => (
+                <button key={suit} className={`trump-suit-btn ${suit}`} onClick={() => onChoose(suit)}>
+                  {SUIT_SYM[suit]}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -51,6 +83,29 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
 
   const isMobile = window.innerWidth <= 600;
   const hi = engine.humanPlayerIdx();
+
+  const [trumpChoiceTimer, setTrumpChoiceTimer] = useState(10);
+
+  // 10-second countdown when human must choose trump
+  useEffect(() => {
+    if (!G.trumpChoicePhase || G.trumpChooserIdx !== hi) return;
+    setTrumpChoiceTimer(10);
+    const iv = setInterval(() => {
+      setTrumpChoiceTimer(t => {
+        if (t <= 1) {
+          clearInterval(iv);
+          const p = G.players[hi];
+          const sc = { spades: 0, hearts: 0, diamonds: 0, clubs: 0 };
+          for (const c of (p?.hand || [])) { if (!isJoker(c)) sc[c.suit] = (sc[c.suit] || 0) + 1; }
+          const best = Object.entries(sc).sort((a, b) => b[1] - a[1])[0]?.[0] || 'spades';
+          engine.doChooseTrump(hi, best);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(iv);
+  }, [G.trumpChoicePhase, G.trumpChooserIdx, hi]);
   const humanPlayer = hi !== -1 ? G.players[hi] : null;
 
   // ─── Detect new round → trigger deal animation ────────────────
@@ -180,17 +235,6 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
         </>
       )}
 
-      {/* Untouchable suit info */}
-      {G.trumpSuit && (
-        <div className="untouchable-panel">
-          {(() => {
-            const untouchable = G.trumpSuit === 'spades' ? 'clubs' : 'spades';
-            const sym = SUIT_SYM[untouchable];
-            const name = { spades: 'пики', clubs: 'крести' }[untouchable];
-            return `${sym} ${name} неприкосновенны`;
-          })()}
-        </div>
-      )}
 
       {/* Table */}
       <Table G={G} UI={UI} engine={engine} humanPlayerIdx={hi} />
@@ -216,9 +260,12 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
       {/* Human hand */}
       {humanPlayer && (
         <div className="human-area">
-          {/* Naki strip — cards thrown to human this round, stacked pile, until next deal */}
-          {humanPlayer.nakiDisplayCards?.length > 0 && (
-            <NakiPile cards={humanPlayer.nakiDisplayCards} />
+          {/* Naki pile — ghost shows target nominal, thrown cards stack on top */}
+          {G.phase !== 'deal' && G.phase !== 'roundover' && (
+            <NakiPile
+              cards={humanPlayer.nakiDisplayCards ?? []}
+              ghostNominal={SCORE_LADDER[humanPlayer.score]}
+            />
           )}
           <Hand
             player={humanPlayer}
@@ -252,16 +299,42 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
         {PHASES_RU[G.phase] || G.phase}
       </div>
 
+      {/* Dice roll overlay */}
+      {G.dicePhase && <DiceRollOverlay G={G} engine={engine} />}
+
+      {/* Trump choice modal */}
+      {G.trumpChoicePhase && (
+        <TrumpChoiceModal
+          chooserName={G.players[G.trumpChooserIdx]?.name}
+          isHuman={G.trumpChooserIdx === hi}
+          timeLeft={trumpChoiceTimer}
+          onChoose={(suit) => engine.doChooseTrump(hi, suit)}
+        />
+      )}
+
       {/* Trump announcement popup */}
       {trumpPopup && (
         <div className="trump-announcement-overlay">
           <div className="trump-announcement-box">
-            <div className={`trump-announcement-suit ${trumpPopup.suit}`}>
-              {SUIT_SYM[trumpPopup.suit]}
-            </div>
-            <div className="trump-announcement-text">
-              Потайной козырь — {SUIT_SYM[trumpPopup.suit]}
-            </div>
+            {trumpPopup.secretOnly ? (
+              <div className="trump-announcement-text">
+                {trumpPopup.playerName} открыл потайную карту
+              </div>
+            ) : (
+              <>
+                <div className={`trump-announcement-suit ${trumpPopup.suit}`}>
+                  {SUIT_SYM[trumpPopup.suit]}
+                </div>
+                <div className="trump-announcement-text">
+                  Потайной козырь — {SUIT_SYM[trumpPopup.suit]}
+                </div>
+                {trumpPopup.playerName && (
+                  <div className="trump-announcement-player">
+                    {trumpPopup.playerName} открыл потайную карту
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

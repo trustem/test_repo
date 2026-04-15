@@ -1,6 +1,7 @@
 import React from 'react';
 import { cardLabel, isJoker, SCORE_LADDER, SUIT_SYM } from '../engine/index.js';
 
+
 const PLAYER_POS_MAP = {
   1: ['top'],
   2: ['top-left', 'top-right'],
@@ -32,18 +33,29 @@ function ScoreDots({ score }) {
   );
 }
 
-function NakiPanel({ nakiCards }) {
-  if (!nakiCards || nakiCards.length === 0) return null;
+const NAKI_OFFSET_BOT = 14;
+
+function NakiPanel({ nakiCards, targetNominal }) {
+  const cards = nakiCards ?? [];
+  const n = cards.length;
+  const containerW = n === 0 ? 34 : 34 + (n - 1) * NAKI_OFFSET_BOT;
   return (
     <div className="naki-panel">
-      <div className="naki-panel-label">Накидка</div>
-      <div className="naki-cards-row">
-        {nakiCards.map((card, i) => {
-          if (isJoker(card)) return <div key={i} className="naki-card-mini joker">🃏</div>;
+      <div className="naki-cards-row" style={{ position: 'relative', width: containerW, height: 48 }}>
+        {n === 0 && (
+          <div className="naki-ghost-card naki-ghost-bot" style={{ position: 'absolute', top: 0, left: 0, zIndex: 0 }}>
+            {targetNominal}
+          </div>
+        )}
+        {cards.map((card, i) => {
+          if (isJoker(card)) return (
+            <div key={i} className="naki-card-mini joker" style={{ position: 'absolute', top: 0, left: i * NAKI_OFFSET_BOT, zIndex: i + 1 }}>🃏</div>
+          );
           const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
           return (
-            <div key={i} className={`naki-card-mini${isRed ? ' red' : ' black'}`}>
-              {card.rank}<br />{SUIT_SYM[card.suit]}
+            <div key={i} className={`naki-card-mini${isRed ? ' red' : ' black'}`} style={{ position: 'absolute', top: 0, left: i * NAKI_OFFSET_BOT, zIndex: i + 1 }}>
+              <span className="naki-card-rank">{card.rank}</span>
+              <span className="naki-card-suit">{SUIT_SYM[card.suit]}</span>
             </div>
           );
         })}
@@ -171,7 +183,10 @@ export default function Opponents({ G, debugMode }) {
             {isDef && <span className="player-role-badge badge-defender">Защита</span>}
             {isAtk && <span className="player-role-badge badge-attacker">Атака</span>}
             {p.exited && <span className="player-role-badge badge-out">Вышел</span>}
-            <NakiPanel nakiCards={p.nakiDisplayCards?.length > 0 ? p.nakiDisplayCards : p.nakiCards} />
+            <NakiPanel
+              nakiCards={p.nakiDisplayCards?.length > 0 ? p.nakiDisplayCards : p.nakiCards}
+              targetNominal={SCORE_LADDER[p.score]}
+            />
           </div>
         );
       })}
