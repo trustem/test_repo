@@ -283,7 +283,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     if (!defender) return 6;
     const defenseCardsPlayed = G.tablePairs.filter(p => p.defense && p.defender === G.defenderIdx).length;
     const defHandCount = defender.hand.length + defenseCardsPlayed;
-    const max = G.firstBeaten ? 6 : 5;
+    const sixPlayer = G.players.length >= 6;
+    const max = G.firstBeaten ? (sixPlayer ? 5 : 6) : (sixPlayer ? 4 : 5);
     return Math.min(max, defHandCount);
   }
 
@@ -359,7 +360,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
   function drawUpTo6(playerIdx) {
     const p = G.players[playerIdx];
     if (p.exited) return;
-    while (p.hand.length < 6 && G.deck.length > 0) {
+    const maxHand = G.players.length >= 6 ? 5 : 6;
+    while (p.hand.length < maxHand && G.deck.length > 0) {
       const card = G.deck.pop();
       if (!card) break;
       if (G.trumpCard && card.id === G.trumpCard.id) {
@@ -531,7 +533,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     });
 
     const activePl = G.players;
-    for (let i = 0; i < 6; i++) {
+    const handSize = activePl.length >= 6 ? 5 : 6;
+    for (let i = 0; i < handSize; i++) {
       for (const p of activePl) {
         const card = G.deck.pop();
         if (card) p.hand.push(card);

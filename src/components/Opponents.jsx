@@ -7,7 +7,7 @@ const PLAYER_POS_MAP = {
   2: ['top-left', 'top-right'],
   3: ['left', 'top', 'right'],
   4: ['left', 'top-left', 'top-right', 'right'],
-  5: ['left', 'top-left', 'top', 'top-right', 'right'],
+  5: ['left-top', 'left-bot', 'top', 'right-top', 'right-bot'],
 };
 
 function escHtml(s) {

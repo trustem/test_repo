@@ -224,6 +224,10 @@ html, body, #root {
 .player-pos-top-right{ top: 14%; right: 14%; }
 .player-pos-left     { left: 3%; top: 50%; transform: translateY(calc(-50% - 10px)); }
 .player-pos-right    { right: 3%; top: 50%; transform: translateY(calc(-50% - 10px)); }
+.player-pos-left-top { left: 3%; top: 8%; }
+.player-pos-left-bot { left: 3%; top: 30%; }
+.player-pos-right-top{ right: 3%; top: 8%; }
+.player-pos-right-bot{ right: 3%; top: 30%; }
 .player-pos-bottom   { bottom: calc(174px + var(--sab)); left: 50%; transform: translateX(-50%); }
 
 /* ── Bot fan hand ─────────────────────────────────────────────────── */
@@ -865,15 +869,13 @@ html, body, #root {
   border-radius: 5px; border: 1.5px solid rgba(0,0,0,.18);
   box-shadow: 0 2px 6px rgba(0,0,0,.35);
   overflow: hidden;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
 }
 .naki-card-rank {
-  position: absolute; top: 2px; left: 3px;
-  font-size: .55rem; font-weight: 900; line-height: 1;
+  font-size: .6rem; font-weight: 900; line-height: 1;
 }
 .naki-card-suit {
-  position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: .95rem; line-height: 1;
+  font-size: .85rem; line-height: 1;
 }
 .naki-card-mini.red .naki-card-rank,
 .naki-card-mini.red .naki-card-suit   { color: var(--red-suit); }
@@ -1740,6 +1742,11 @@ html, body, #root {
   .player-pos-left  { left: 2px !important; top: 32% !important; transform: translateY(-50%) !important; }
   .player-pos-right { right: 2px !important; top: 32% !important; transform: translateY(-50%) !important; }
   .player-pos-top   { top: 52px !important; }
+  /* 5-player stacked columns */
+  .player-pos-left-top  { left: 2px !important; top: 52px !important; transform: none !important; }
+  .player-pos-left-bot  { left: 2px !important; top: 218px !important; transform: none !important; }
+  .player-pos-right-top { right: 2px !important; top: 52px !important; transform: none !important; }
+  .player-pos-right-bot { right: 2px !important; top: 218px !important; transform: none !important; }
 
   /* Score dots hidden on mobile to save space */
   .player-score-mini { display: none; }
