@@ -1304,20 +1304,52 @@ html, body, #root {
 .empty-deck-trump-sym  { font-size: 2.2rem; line-height: 1; color: #555; }
 .empty-deck-trump-label { font-size: .62rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: rgba(255,255,255,.45); }
 
-/* ─── Thrown cards (накинуто вам) — mini-fan above player hand ─── */
+/* ─── Thrown cards (накинуто) — panel in center above hand ─── */
 .thrown-to-me-zone {
   position: absolute;
-  z-index: 20;
-  /* desktop: above human hand area */
+  z-index: 25;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: calc(268px + var(--sab) + 8px);
-  left: max(8px, var(--sal));
+  background: rgba(0,0,0,.55);
+  border: 1px solid rgba(255,220,0,.4);
+  border-radius: 10px;
+  padding: 6px 12px 8px;
+  white-space: nowrap;
 }
+.thrown-to-me-label {
+  font-size: 11px; font-weight: 700;
+  color: #f1c40f;
+  text-shadow: 0 1px 3px rgba(0,0,0,.8);
+  margin-bottom: 5px;
+  text-align: center;
+}
+.thrown-to-me-fan {
+  position: relative;
+  height: 60px;
+  min-width: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.thrown-mini-card {
+  position: relative;
+  flex-shrink: 0;
+}
+.thrown-mini-card .card.small {
+  width: 38px !important;
+  height: 54px !important;
+  padding: 2px !important;
+}
+.thrown-mini-card .card.small .card-rank-suit-top { font-size: .65rem; }
+.thrown-mini-card .card.small .card-center        { font-size: .95rem; }
+
 @media (max-width: 600px) {
   /* Secret card floats between hand and Бита at the right side */
   .my-secret-card-mobile {
     position: absolute !important;
     right: max(8px, var(--sar)) !important;
-    /* sits above hand cards (96px+sab) with gap, below Бита label (~196+sab) */
     bottom: calc(136px + var(--sab)) !important;
     width: 34px !important;
     height: 48px !important;
@@ -1328,30 +1360,7 @@ html, body, #root {
 
   .thrown-to-me-zone {
     bottom: calc(196px + var(--sab) + 8px);
-    left: 8px;
   }
-  .thrown-to-me-label {
-    font-size: 9px; font-weight: 700;
-    color: #f1c40f;
-    text-shadow: 0 1px 3px rgba(0,0,0,.8);
-    margin-bottom: 3px;
-  }
-  .thrown-to-me-fan {
-    position: relative;
-    height: 52px;
-    width: 200px;
-  }
-  .thrown-mini-card {
-    position: absolute;
-    top: 0;
-  }
-  .thrown-mini-card .card.small {
-    width: 32px !important;
-    height: 46px !important;
-    padding: 2px !important;
-  }
-  .thrown-mini-card .card.small .card-rank-suit-top { font-size: .6rem; }
-  .thrown-mini-card .card.small .card-center        { font-size: .85rem; }
 }
 .empty-deck-trump-badge.red .empty-deck-trump-sym { color: #c0392b; }
 
@@ -1626,6 +1635,31 @@ html, body, #root {
 
   /* Score dots hidden on mobile to save space */
   .player-score-mini { display: none; }
+
+  /* Naki pile inside human-area — top-center, cards stacked with offset */
+  .human-naki-strip {
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 26;
+    pointer-events: none;
+  }
+  .human-naki-cards-row {
+    position: relative;
+    height: 42px;
+  }
+  .human-naki-cards-row .naki-card-mini {
+    position: absolute !important;
+    top: 0 !important;
+    width: 30px !important;
+    height: 42px !important;
+    font-size: .68rem !important;
+    line-height: 1.2 !important;
+    background: #fff !important;
+    border: 1.5px solid rgba(0,0,0,.18) !important;
+    box-shadow: 1px 2px 4px rgba(0,0,0,.35) !important;
+  }
 
   /* Human hand: arc fan at bottom */
   .human-area {

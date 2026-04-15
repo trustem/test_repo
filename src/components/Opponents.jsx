@@ -171,7 +171,7 @@ export default function Opponents({ G, debugMode }) {
             {isDef && <span className="player-role-badge badge-defender">Защита</span>}
             {isAtk && <span className="player-role-badge badge-attacker">Атака</span>}
             {p.exited && <span className="player-role-badge badge-out">Вышел</span>}
-            <NakiPanel nakiCards={p.nakiCards} />
+            <NakiPanel nakiCards={p.nakiDisplayCards?.length > 0 ? p.nakiDisplayCards : p.nakiCards} />
           </div>
         );
       })}
@@ -190,7 +190,6 @@ export default function Opponents({ G, debugMode }) {
             </div>
             {isHDef && <span className="player-role-badge badge-defender">Защита</span>}
             {isHAtk && <span className="player-role-badge badge-attacker">Атака</span>}
-            <NakiPanel nakiCards={hp.nakiCards} />
           </div>
         );
       })()}

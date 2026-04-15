@@ -76,6 +76,7 @@ export function newGameState(playerDefs) {
     exited: false,
     exitOrder: null,
     nakiCards: [],
+    nakiDisplayCards: [],  // persists until dealRound; accumulates all cards thrown this round
   }));
   return {
     players,
@@ -101,9 +102,11 @@ export function newGameState(playerDefs) {
     nakiGiveToHandPending: [],
     nakiGiveToHandLimit: 0,
     defenderTaking: false,
-    nakiDisplayCards: [],   // cards thrown at human defender — persists through round end
+    nakiDisplayCards: [],   // cards thrown during nakidyvanie — persists until next naki cycle
+    nakiDefenderIdx: null,
     transferThrowQueue: [],
     transferThrowPhase: false,
+    transferThrowNominal: null,
     humanTransferThrowPassed: false,
     roundNum: 0,
     exitFirstIdx: null,
@@ -186,11 +189,12 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
   function isHumanTurn() {
     const hi = humanPlayerIdx();
     if (hi === -1) return false;
+    if (G.transferThrowPhase && G.transferThrowQueue.length > 0 && G.transferThrowQueue[0] === hi) return true;
     if (G.phase === 'attack') {
       if (!G.attackDone && leftThrowerIdx() === hi) return true;
       if (G.attackDone && G.rightNeighborThrowing && rightNeighborOfDefender() === hi) return true;
     }
-    if (G.phase === 'defense' && G.defenderIdx === hi) return true;
+    if (G.phase === 'defense' && G.defenderIdx === hi && !G.transferThrowPhase) return true;
     if (G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length > 0 && G.nakiGiveToHandPending[0] === hi) return true;
     if (G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length === 0 && G.nakiPending.length > 0 && G.nakiPending[0] === hi) return true;
     return false;
@@ -483,11 +487,13 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     G.gameOverPlayer = null;
     G.transferThrowQueue = [];
     G.transferThrowPhase = false;
+    G.transferThrowNominal = null;
     G.humanTransferThrowPassed = false;
     G.nakiGiveToHandPending = [];
     G.nakiGiveToHandLimit = 0;
     G.defenderTaking = false;
     G.nakiDisplayCards = [];
+    G.nakiDefenderIdx = null;
     G.phase = 'deal';
     G.humanJustTook = false;
 
@@ -499,6 +505,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       p.exited = false;
       p.exitOrder = null;
       p.nakiCards = [];
+      p.nakiDisplayCards = [];
     });
 
     const activePl = G.players;
@@ -541,8 +548,6 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     if (allowed <= 0) return false;
     cards = cards.slice(0, allowed);
     addLog(`${G.players[playerIdx].name} атакует: ${cards.map(cardStr).join(', ')}`, 'attack');
-    // Clear naki display on first attack of new round
-    if (G.tablePairs.length === 0) G.nakiDisplayCards = [];
     for (const card of cards) {
       removeFromHand(playerIdx, card);
       G.tablePairs.push({ attack: card, defense: null, attacker: playerIdx });
@@ -585,6 +590,44 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     G.defenderIdx = newDefender;
     addLog(`Теперь защищается: ${G.players[newDefender].name}`, 'transfer');
     G.phase = 'defense';
+
+    // Check if transferrer has more cards of same nominal to throw immediately
+    const transferredNominal = cardNominal(card);
+    const canThrowMore = G.players[defenderIdx].hand.some(c => cardNominal(c) === transferredNominal)
+      && G.tablePairs.length < getAttackLimit();
+    if (canThrowMore) {
+      G.transferThrowPhase = true;
+      G.transferThrowQueue = [defenderIdx];
+      G.transferThrowNominal = transferredNominal;
+    }
+    notify();
+    scheduleBot();
+  }
+
+  function doTransferThrow(throwerIdx, card) {
+    if (!G.transferThrowPhase || G.transferThrowQueue[0] !== throwerIdx) return;
+    if (cardNominal(card) !== G.transferThrowNominal) return;
+    if (G.tablePairs.length >= getAttackLimit()) return;
+    addLog(`${G.players[throwerIdx].name} подкидывает: ${cardStr(card)}`, 'attack');
+    removeFromHand(throwerIdx, card);
+    G.tablePairs.push({ attack: card, defense: null, attacker: throwerIdx });
+    // Check if thrower can still throw more
+    const stillHasMore = G.players[throwerIdx].hand.some(c => cardNominal(c) === G.transferThrowNominal)
+      && G.tablePairs.length < getAttackLimit();
+    if (!stillHasMore) {
+      G.transferThrowPhase = false;
+      G.transferThrowQueue = [];
+      G.transferThrowNominal = null;
+    }
+    notify();
+    scheduleBot();
+  }
+
+  function doTransferThrowPass(throwerIdx) {
+    if (!G.transferThrowPhase) return;
+    G.transferThrowPhase = false;
+    G.transferThrowQueue = [];
+    G.transferThrowNominal = null;
     notify();
     scheduleBot();
   }
@@ -630,6 +673,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     G.rightNeighborThrowing = false;
     G.transferThrowQueue = [];
     G.transferThrowPhase = false;
+    G.transferThrowNominal = null;
     G.humanTransferThrowPassed = false;
     G.defenderTaking = false;
     G.throwers = [];
@@ -690,6 +734,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     }
     G.transferThrowQueue = [];
     G.transferThrowPhase = false;
+    G.transferThrowNominal = null;
     resolveAfterThrowing();
   }
 
@@ -703,6 +748,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     }
     G.transferThrowQueue = [];
     G.transferThrowPhase = false;
+    G.transferThrowNominal = null;
     resolveAfterThrowing();
   }
 
@@ -824,8 +870,10 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       G.nakiPending = [];
     }
     G.tablePairs.push({ attack: card, defense: null, attacker: throwerIdx, isNaki: true });
-    // Snapshot for UI — persists through finishNakidyvanie so React always sees it
-    G.nakiDisplayCards = [...G.players[defenderIdx].nakiCards];
+    // Accumulate into per-player display array (persists until dealRound)
+    G.players[defenderIdx].nakiDisplayCards.push(card);
+    G.nakiDisplayCards = [...G.players[defenderIdx].nakiCards]; // keep global in sync for undo
+    G.nakiDefenderIdx = defenderIdx;
     checkGameEnd(defenderIdx);
     if (!G.gameOver) {
       if (G.nakiPending.length === 0) afterNakiPending();
@@ -846,8 +894,10 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       if (G.gameOver) return;
     }
     G.nakiPending = [];
-    // Snapshot for UI
-    G.nakiDisplayCards = [...G.players[defenderIdx].nakiCards];
+    // Accumulate into per-player display array (persists until dealRound)
+    for (const card of cards) G.players[defenderIdx].nakiDisplayCards.push(card);
+    G.nakiDisplayCards = [...G.players[defenderIdx].nakiCards]; // keep global in sync for undo
+    G.nakiDefenderIdx = defenderIdx;
     afterNakiPending();
   }
 
@@ -899,6 +949,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     G.rightNeighborThrowing = false;
     G.transferThrowQueue = [];
     G.transferThrowPhase = false;
+    G.transferThrowNominal = null;
     G.humanTransferThrowPassed = false;
     G.defenderTaking = false;
     G.throwers = [];
@@ -976,6 +1027,22 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     if (G.phase === 'deal' || G.phase === 'draw' || G.phase === 'roundover') return;
     if (isHumanTurn()) return;
     undoState = null;
+
+    // Handle transfer-throw phase (bot immediately throws or passes)
+    if (G.transferThrowPhase && G.transferThrowQueue.length > 0) {
+      const throwerIdx = G.transferThrowQueue[0];
+      if (G.players[throwerIdx] && G.players[throwerIdx].isBot) {
+        const nom = G.transferThrowNominal;
+        const throwable = nom ? G.players[throwerIdx].hand.filter(c => cardNominal(c) === nom) : [];
+        if (throwable.length > 0 && G.tablePairs.length < getAttackLimit()) {
+          setTimeout(() => { if (G.transferThrowPhase) doTransferThrow(throwerIdx, throwable[0]); }, BOT_DELAY / 2);
+        } else {
+          setTimeout(() => { if (G.transferThrowPhase) doTransferThrowPass(throwerIdx); }, BOT_DELAY / 2);
+        }
+      }
+      return;
+    }
+
     const phase = G.phase;
     if (phase === 'attack') {
       if (G.attackDone && G.rightNeighborThrowing) {
@@ -1271,6 +1338,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     doAttack: (playerIdx, cards) => { saveUndoState(); doAttack(playerIdx, cards); },
     doDefend: (defenderIdx, attackPairIdx, defenseCard) => { saveUndoState(); doDefend(defenderIdx, attackPairIdx, defenseCard); },
     doTransfer: (defenderIdx, card) => { saveUndoState(); doTransfer(defenderIdx, card); },
+    doTransferThrow: (throwerIdx, card) => { saveUndoState(); doTransferThrow(throwerIdx, card); },
+    doTransferThrowPass: (throwerIdx) => { doTransferThrowPass(throwerIdx); },
     doTake: (defenderIdx) => { saveUndoState(); doTake(defenderIdx); },
     doThrow: (throwerIdx, card) => { saveUndoState(); doThrow(throwerIdx, card); },
     declareAttackDone: (playerIdx) => { declareAttackDone(playerIdx); },

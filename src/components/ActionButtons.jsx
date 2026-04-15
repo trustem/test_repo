@@ -97,6 +97,29 @@ export default function ActionButtons({ G, UI, engine, humanPlayerIdx, undoState
     );
   }
 
+  // Transfer-throw phase: transferrer can throw same-nominal cards before new defender acts
+  if (G.transferThrowPhase && G.transferThrowQueue.length > 0 && G.transferThrowQueue[0] === hi) {
+    const nom = G.transferThrowNominal;
+    const throwable = nom ? p.hand.filter(c => cardNominal(c) === nom) : [];
+    throwable.forEach((tc, i) => {
+      buttons.push(
+        <button
+          key={`ttrow-${i}`}
+          className="action-btn btn-attack"
+          onClick={() => engine.doTransferThrow(hi, tc)}
+        >
+          Подкинуть {cardStr(tc)}
+        </button>
+      );
+    });
+    buttons.push(
+      <button key="ttpass" className="action-btn btn-pass" onClick={() => engine.doTransferThrowPass(hi)}>
+        Пас
+      </button>
+    );
+    return <div className="action-buttons">{buttons}</div>;
+  }
+
   if (G.phase === 'defense' && hi === G.defenderIdx) {
     const transferCandidates = p.hand.filter(c => engine.canTransfer(c, G.tablePairs));
     transferCandidates.forEach((tc, i) => {

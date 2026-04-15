@@ -6,8 +6,30 @@ import DeckPile from './DeckPile';
 import DiscardPile from './DiscardPile';
 import ActionButtons from './ActionButtons';
 import GameLog from './GameLog';
-import { SUIT_SYM } from '../engine/index.js';
-import Card from './Card';
+import { SUIT_SYM, isJoker } from '../engine/index.js';
+
+// Small stacked pile of naki cards — face up, each offset slightly so all are visible
+function NakiPile({ cards }) {
+  const n = cards.length;
+  const containerW = 34 + (n - 1) * 10;
+  return (
+    <div className="human-naki-strip">
+      <div className="human-naki-cards-row" style={{ width: containerW }}>
+        {cards.map((card, i) => {
+          if (isJoker(card)) return (
+            <div key={card.id ?? i} className="naki-card-mini joker" style={{ left: i * 10, zIndex: i }}>🃏</div>
+          );
+          const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+          return (
+            <div key={card.id ?? i} className={`naki-card-mini${isRed ? ' red' : ' black'}`} style={{ left: i * 10, zIndex: i }}>
+              {card.rank}<br />{SUIT_SYM[card.suit]}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const PHASES_RU = {
   attack: 'Атака',
@@ -190,27 +212,14 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
         <div className="my-secret-card-mobile card secret-back" />
       )}
 
-      {/* Thrown cards (накинуто) — mini-fan above player hand */}
-      {hi !== -1 && (() => {
-        const nakedCards = G.nakiDisplayCards ?? [];
-        if (nakedCards.length === 0) return null;
-        return (
-          <div className="thrown-to-me-zone">
-            <div className="thrown-to-me-label">▼ накинуто вам</div>
-            <div className="thrown-to-me-fan">
-              {nakedCards.map((card, i) => (
-                <div key={card.id ?? i} className="thrown-mini-card" style={{ left: i * 22 }}>
-                  <Card card={card} faceUp small />
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Human hand */}
       {humanPlayer && (
         <div className="human-area">
+          {/* Naki strip — cards thrown to human this round, stacked pile, until next deal */}
+          {humanPlayer.nakiDisplayCards?.length > 0 && (
+            <NakiPile cards={humanPlayer.nakiDisplayCards} />
+          )}
           <Hand
             player={humanPlayer}
             humanPlayerIdx={hi}
