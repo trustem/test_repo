@@ -92,7 +92,7 @@
   <!-- Players positioned around the oval -->
   <div id="players-area" class="players-area"></div>
 
-  <!-- Center: discard pile + deck + trump card -->
+  <!-- Deck zone — left side (desktop: center-info; mobile: fixed left) -->
   <div id="center-info" class="center-info">
     <div class="pile-zone">
       <div id="discard-visual" class="discard-visual"></div>
@@ -107,12 +107,33 @@
       <div class="trump-info">Козырь: <span id="trump-panel-suit" class="trump-panel-suit"></span></div>
     </div>
   </div>
+
+  <!-- Mobile-only: separate positioned deck zone -->
+  <div id="deck-zone-mobile" class="deck-zone-mobile" style="display:none">
+    <div class="deck-count-mobile" id="deck-count-mobile">40</div>
+    <div class="deck-stack-mobile" id="deck-stack-mobile" id="deck"></div>
+    <div id="trump-card-display" class="trump-card-display"></div>
+    <div class="trump-label-mobile">Козырь</div>
+  </div>
+
+  <!-- Mobile-only: separate positioned discard zone -->
+  <div id="discard-zone-mobile" class="discard-zone-mobile" style="display:none">
+    <div class="discard-stack-mobile" id="discard-stack-mobile"></div>
+    <div class="discard-label-mobile">Бита: <span id="discard-count-mobile">0</span></div>
+  </div>
+
   <div id="untouchable-panel" class="untouchable-panel"></div>
 
   <!-- Table cards (attack / defense) -->
   <div class="table-area">
-    <div id="table-cards" class="table-cards"></div>
     <div id="action-hint" class="action-hint"></div>
+    <div id="table-cards" class="table-cards"></div>
+  </div>
+
+  <!-- Mobile-only: thrown-to-me panel -->
+  <div id="thrown-to-me-wrap" style="display:none; position:absolute; left:8px; bottom:120px; z-index:15; flex-direction:column; align-items:flex-start; gap:3px;">
+    <div class="thrown-to-me-label">▼ накинуто вам</div>
+    <div id="thrown-to-me-fan" style="position:relative;"></div>
   </div>
 
   <!-- Action buttons above hand -->

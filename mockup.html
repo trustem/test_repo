@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Бардак — Макет</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#1a1a2e; display:flex; flex-direction:column; align-items:center;
+    min-height:100vh; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; padding-bottom:20px;
+  }
+  h1 { color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; padding:12px 0 8px; }
+  .controls { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; justify-content:center; }
+  .controls button { background:#2a2a4a; border:1px solid #444; color:#aaa; padding:5px 12px; border-radius:20px; font-size:12px; cursor:pointer; transition:all .2s; }
+  .controls button.active { background:#4a9eff; border-color:#4a9eff; color:#fff; }
+  .controls label { color:#aaa; font-size:12px; display:flex; align-items:center; gap:5px; cursor:pointer; }
+  .controls select { background:#2a2a4a; border:1px solid #444; color:#aaa; padding:5px 8px; border-radius:20px; font-size:12px; cursor:pointer; }
+
+  /* Purple — цвет потайной карты */
+  :root { --secret-bg: linear-gradient(145deg,#4a1480,#7c2fd4); }
+
+  .phone {
+    width:390px; height:844px;
+    background-image:radial-gradient(ellipse at 50% 50%,#4a9a62 0%,#2d6040 60%,#1e4a30 100%);
+    border-radius:44px; overflow:hidden; position:relative;
+    box-shadow:0 0 0 8px #111,0 0 0 10px #333,0 40px 80px rgba(0,0,0,.8); flex-shrink:0;
+  }
+  .notch { position:absolute; top:0; left:50%; transform:translateX(-50%); width:120px; height:34px; background:#111; border-radius:0 0 20px 20px; z-index:100; }
+
+  /* ── TABLE — 3 колонки, левее чтобы не лезть на правых игроков ── */
+  /* Колода занимает до x≈82. Правые игроки начинаются с x≈295 (390-8-87).
+     Доступно: 82..295 = 213px. 3 пары × 62px + 2×6px gap = 198px — влезает. */
+  .table-zone {
+    position:absolute;
+    left:82px; top:168px;
+    width:198px; /* 3×62 + 2×6 */
+    display:grid; grid-template-columns: repeat(3, 62px); gap:6px;
+    z-index:10;
+  }
+  .table-pair { position:relative; width:62px; height:94px; flex-shrink:0; }
+  .table-card { position:absolute; top:0; left:0; width:58px; height:82px; border-radius:7px; background:#fefefe; border:1px solid rgba(0,0,0,.12); box-shadow:0 4px 12px rgba(0,0,0,.5); display:flex; flex-direction:column; justify-content:space-between; padding:3px 4px; font-size:11px; font-weight:900; color:#111; }
+  .table-card.red { color:#c0392b; }
+  .table-card.defense { top:14px; left:5px; transform:rotate(11deg); border:2px solid #27ae60; z-index:2; }
+  .suit-center { text-align:center; font-size:17px; line-height:1; }
+
+  .attack-label { position:absolute; left:82px; width:198px; top:150px; text-align:center; z-index:11; }
+  .attack-label span { font-size:10px; font-weight:700; color:#f1c40f; background:rgba(0,0,0,.45); padding:2px 10px; border-radius:10px; border:1px solid rgba(241,196,15,.3); white-space:nowrap; }
+
+  /* ── OPPONENTS ── */
+  .opp { position:absolute; display:flex; flex-direction:column; align-items:center; gap:0; z-index:20; }
+  .opp-name { font-size:9px; color:rgba(255,255,255,.9); font-weight:700; text-shadow:0 1px 4px rgba(0,0,0,.9); white-space:nowrap; line-height:1.4; }
+  .opp-count { font-size:8px; color:rgba(255,255,255,.5); font-weight:600; line-height:1.3; }
+
+  /* Hand row: fan + secret card side by side */
+  .opp-hand-row { display:flex; align-items:flex-end; gap:5px; margin-top:2px; }
+  .opp-fan { position:relative; }
+
+  /* Secret card (потайная) — фиолетовая */
+  .secret-card {
+    border-radius:4px;
+    background: var(--secret-bg);
+    border:1px solid rgba(200,160,255,.35);
+    box-shadow:0 2px 6px rgba(0,0,0,.6);
+    flex-shrink:0;
+  }
+
+  /* Накинутые карты */
+  .thrown-fan { position:relative; margin-top:4px; }
+  .thrown-card { position:absolute; top:0; border-radius:3px; background:#fefefe; border:1px solid rgba(0,0,0,.2); box-shadow:1px 1px 4px rgba(0,0,0,.5); display:flex; flex-direction:column; padding:2px; font-size:7px; font-weight:900; line-height:1.15; color:#111; }
+  .thrown-card.red { color:#c0392b; }
+
+  /* ── DECK + TRUMP ── */
+  .deck-zone { position:absolute; left:10px; top:50%; transform:translateY(-50%); z-index:15; display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .deck-count { color:#fff; font-size:15px; font-weight:900; text-shadow:0 2px 6px rgba(0,0,0,.8); }
+  .deck-stack { position:relative; width:76px; height:102px; }
+  .deck-back { position:absolute; width:56px; height:80px; border-radius:6px; background:linear-gradient(145deg,#1e4a90,#2c6dcd); border:1px solid rgba(255,255,255,.25); box-shadow:2px 2px 6px rgba(0,0,0,.5); }
+  .deck-back:nth-child(1){top:4px;left:0} .deck-back:nth-child(2){top:2px;left:1px} .deck-back:nth-child(3){top:0;left:2px}
+  /* Потайная под козырем — фиолетовая, торчит заметно */
+  .secret-under-trump {
+    position:absolute; width:72px; height:50px; border-radius:5px;
+    background: var(--secret-bg);
+    border:1px solid rgba(200,160,255,.4);
+    left:20px; top:36px;  /* торчит на 16px ниже козыря */
+    box-shadow:2px 2px 6px rgba(0,0,0,.6); z-index:-2;
+  }
+  .trump-peek { position:absolute; width:72px; height:50px; border-radius:5px; background:#fefefe; border:1px solid rgba(0,0,0,.15); left:40px; top:18px; display:flex; flex-direction:column; align-items:flex-start; padding:3px 4px; font-size:13px; font-weight:900; color:#c0392b; box-shadow:2px 2px 8px rgba(0,0,0,.5); z-index:-1; }
+  .trump-label { font-size:8px; color:rgba(255,255,255,.55); text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+
+  /* ── БИТА ── */
+  .discard-pile { position:absolute; right:12px; bottom:160px; z-index:12; display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .discard-stack { position:relative; width:48px; height:66px; }
+  .discard-card { position:absolute; width:44px; height:62px; border-radius:5px; border:1px solid rgba(0,0,0,.12); box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  .discard-label { font-size:8px; font-weight:700; color:rgba(255,255,255,.5); text-transform:uppercase; letter-spacing:.5px; }
+
+  /* ── TRANSFER SLOT ── */
+  .transfer-slot {
+    position:absolute; top:0; left:0; width:58px; height:82px;
+    border-radius:7px;
+    border:2px dashed rgba(155,89,182,.75);
+    background:rgba(155,89,182,.08);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .transfer-slot-icon {
+    font-size:30px; line-height:1;
+    color:rgba(155,89,182,.8);
+  }
+
+  /* ── ACTION BUTTONS ── */
+  .action-btns { position:absolute; left:0; right:0; bottom:196px; display:flex; justify-content:center; align-items:center; gap:16px; z-index:30; }
+  .btn-take { width:68px; height:96px; background:#e74c3c; border:none; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:900; color:#fff; box-shadow:0 6px 20px rgba(0,0,0,.5),0 0 0 2px rgba(231,76,60,.4); cursor:pointer; }
+  .btn-done { padding:12px 24px; border-radius:24px; font-size:14px; font-weight:800; letter-spacing:1px; border:none; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.5); background:#27ae60; color:#fff; }
+
+  /* ── PLAYER HAND ── */
+  .hand-zone { position:absolute; bottom:0; left:0; right:0; height:200px; z-index:25; overflow:hidden; }
+  .hand-fan { position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:100%; height:165px; }
+  .hand-card { position:absolute; width:72px; height:104px; border-radius:8px; background:#fefefe; border:1px solid rgba(0,0,0,.12); box-shadow:0 6px 18px rgba(0,0,0,.5); display:flex; flex-direction:column; justify-content:space-between; padding:5px; font-size:15px; font-weight:900; transform-origin:bottom center; transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s; cursor:pointer; user-select:none; bottom:0; }
+  .hand-card.red { color:#c0392b; }
+  .hand-card.lifted { box-shadow:0 20px 40px rgba(0,0,0,.7)!important; z-index:60!important; }
+  .hand-card .sc { text-align:center; font-size:26px; line-height:1; }
+  .hand-card .cb { transform:rotate(180deg); line-height:1.1; }
+
+  /* Потайная игрока — стоит отдельно справа от руки */
+  .my-secret {
+    position:absolute;
+    width:52px; height:76px;
+    border-radius:8px;
+    background: var(--secret-bg);
+    border:1px solid rgba(200,160,255,.4);
+    box-shadow:0 6px 16px rgba(0,0,0,.6);
+    bottom:0;
+    right:12px;
+    z-index:26;
+  }
+
+  /* ── Browser ── */
+  .browser-hint { width:390px; height:44px; background:#1a1a1a; display:flex; align-items:center; justify-content:center; border-radius:0 0 44px 44px; border-top:1px solid #2a2a2a; }
+  .browser-bar { width:120px; height:4px; background:#3a3a3a; border-radius:2px; }
+</style>
+</head>
+<body>
+<h1>Бардак — визуальный макет</h1>
+<div class="controls">
+  <button class="active" onclick="setCount(2)">2 игрока</button>
+  <button onclick="setCount(3)">3 игрока</button>
+  <button onclick="setCount(4)">4 игрока</button>
+  <button onclick="setCount(5)">5 игроков</button>
+  <button onclick="setCount(6)">6 игроков</button>
+  <label><input type="checkbox" id="maxTable" onchange="renderTable()"> 12 карт на столе (6+6)</label>
+  <select onchange="renderTable(this.value)">
+    <option value="attack">Атака</option>
+    <option value="transfer">Перевод</option>
+    <option value="thrown_to_me">Накинули мне</option>
+  </select>
+</div>
+
+<div class="phone" id="phone">
+  <div class="notch"></div>
+  <div id="opps"></div>
+
+  <!-- DECK + TRUMP -->
+  <div class="deck-zone">
+    <div class="deck-count">24</div>
+    <div class="deck-stack">
+      <div class="deck-back"></div>
+      <div class="deck-back"></div>
+      <div class="deck-back"></div>
+      <div class="secret-under-trump"></div>
+      <div class="trump-peek">♠<br>7</div>
+    </div>
+    <div class="trump-label">Козырь</div>
+  </div>
+
+  <!-- БИТА -->
+  <div class="discard-pile">
+    <div class="discard-stack" id="discardStack"></div>
+    <div class="discard-label">Бита: 8</div>
+  </div>
+
+  <div class="attack-label" id="attackLabel"><span>⚔️ Бот атакует вас</span></div>
+  <div class="table-zone" id="tableZone"></div>
+
+  <!-- Накинутые мне карты — под кнопкой Взять, у левой стены -->
+  <div id="thrownToMeWrap" style="display:none; position:absolute; left:8px; bottom:120px; z-index:15; flex-direction:column; align-items:flex-start; gap:3px;">
+    <div style="font-size:9px; font-weight:700; color:#f1c40f; text-shadow:0 1px 3px rgba(0,0,0,.8);">▼ накинуто вам</div>
+    <div id="thrownToMeFan" style="position:relative;"></div>
+  </div>
+
+  <div class="action-btns" id="actionBtns">
+    <button class="btn-take">Взять</button>
+    <button class="btn-done">Бито</button>
+  </div>
+
+  <div class="hand-zone">
+    <div class="hand-fan" id="handFan"></div>
+    <!-- Потайная игрока — справа от руки, рядом но не поверх -->
+    <div class="my-secret"></div>
+  </div>
+</div>
+
+<div class="browser-hint"><div class="browser-bar"></div></div>
+
+<script>
+const MY_CARDS = [
+  {rank:'6',suit:'♣',red:false},{rank:'8',suit:'♠',red:false},{rank:'9',suit:'♠',red:false},
+  {rank:'J',suit:'♠',red:false},{rank:'J',suit:'♥',red:true},{rank:'10',suit:'♦',red:true},{rank:'9',suit:'♥',red:true},
+];
+const OPP_NAMES  = ['Бот','Бот 2','Бот 3','Бот 4','Бот 5'];
+const OPP_COUNTS = [12, 6, 5, 15, 8];
+const THROWN = [
+  [{rank:'6',suit:'♠',red:false},{rank:'6',suit:'♥',red:true}],
+  [{rank:'9',suit:'♣',red:false},{rank:'7',suit:'♠',red:false},{rank:'J',suit:'♦',red:true}],
+  [],
+  [{rank:'J',suit:'♣',red:false},{rank:'J',suit:'♦',red:true},{rank:'J',suit:'♠',red:false},{rank:'J',suit:'♥',red:true}],
+  [{rank:'6',suit:'♦',red:true}],
+];
+// Scenarios
+const SCENARIOS = {
+  attack: {
+    label: '⚔️ Бот атакует вас',
+    pairs: [
+      {a:{rank:'7',suit:'♠',red:false},d:{rank:'Q',suit:'♦',red:true}},
+      {a:{rank:'6',suit:'♥',red:true},d:null},
+      {a:{rank:'7',suit:'♣',red:false},d:null},
+    ],
+    thrownToMe: [],
+    btns: ['Взять','Бито'],
+  },
+  transfer: {
+    label: '🔄 Перевод на следующего',
+    // перевод: атакующая карта одного номинала — защитник кладёт ту же масть
+    pairs: [
+      {a:{rank:'7',suit:'♠',red:false},d:null,transfer:true},
+      {a:{rank:'7',suit:'♥',red:true}, d:null,transfer:true},
+      {slot:'transfer'}, // слот-подсказка: сюда можно положить карту перевода
+    ],
+    thrownToMe: [],
+    btns: ['Взять','Перевести'],
+  },
+  thrown_to_me: {
+    label: '📥 Вам накинули карты',
+    pairs: [
+      {a:{rank:'9',suit:'♠',red:false},d:{rank:'Q',suit:'♦',red:true}},
+      {a:{rank:'9',suit:'♥',red:true}, d:{rank:'K',suit:'♠',red:false}},
+    ],
+    thrownToMe: [
+      {rank:'9',suit:'♣',red:false},
+      {rank:'9',suit:'♦',red:true},
+      {rank:'6',suit:'♠',red:false},
+    ],
+    btns: ['Взять','Бито'],
+  },
+};
+const TABLE_MAX = [
+  {a:{rank:'7',suit:'♠',red:false},d:{rank:'Q',suit:'♦',red:true}},
+  {a:{rank:'6',suit:'♥',red:true},d:{rank:'A',suit:'♥',red:true}},
+  {a:{rank:'9',suit:'♣',red:false},d:{rank:'10',suit:'♠',red:false}},
+  {a:{rank:'J',suit:'♦',red:true},d:{rank:'K',suit:'♠',red:false}},
+  {a:{rank:'8',suit:'♠',red:false},d:{rank:'A',suit:'♠',red:false}},
+  {a:{rank:'6',suit:'♦',red:true},d:{rank:'10',suit:'♥',red:true}},
+];
+let currentScenario = 'attack';
+
+// ─── Layouts: top + right side (left=deck zone is blocked) ───────────────────
+// Fan width for n=10 cards, OL=8: 8*9+24 = 96px + 5gap + secret(24) = 125px
+// So each block is ~125px. Centered means ±63px around cx.
+// Phone usable for top: x=82..380 = 298px
+// For 3 on top: 298/3 ≈ 99px → too tight with secret. So 6p uses 2 top + 3 right.
+// For 2 on top: spacing = 298/1 = 298, centers at ~160 and ~310 → fine.
+const LAYOUTS = {
+  2: [ {cx:228, cy:8} ],
+  3: [ {cx:175, cy:8}, {side:true, cy:340} ],
+  4: [ {cx:158, cy:8}, {cx:300, cy:8}, {side:true, cy:350} ],
+  5: [ {cx:158, cy:8}, {cx:300, cy:8}, {side:true, cy:230}, {side:true, cy:440} ],
+  6: [ {cx:158, cy:8}, {cx:300, cy:8}, {side:true, cy:200}, {side:true, cy:370}, {side:true, cy:545} ],
+};
+
+// ─── Thrown fan ──────────────────────────────────────────────────────────────
+function buildThrownFan(thrown) {
+  if (!thrown || !thrown.length) return null;
+  const CW=20, CH=30, VIS=10, n=thrown.length;
+  const fan = document.createElement('div');
+  fan.className = 'thrown-fan';
+  fan.style.width  = (VIS*(n-1)+CW) + 'px';
+  fan.style.height = CH + 'px';
+  thrown.forEach((c,i) => {
+    const el = document.createElement('div');
+    el.className = 'thrown-card' + (c.red?' red':'');
+    el.style.cssText = `left:${i*VIS}px;width:${CW}px;height:${CH}px;z-index:${i};`;
+    el.innerHTML = `<span>${c.rank}</span><span>${c.suit}</span>`;
+    fan.appendChild(el);
+  });
+  return fan;
+}
+
+// ─── Opponent block ───────────────────────────────────────────────────────────
+function buildOpp(pos, name, handCount, thrown) {
+  const isSide = !!pos.side;
+  const wrap = document.createElement('div');
+  wrap.className = 'opp';
+
+  if (isSide) {
+    wrap.style.right     = '8px';
+    wrap.style.top       = pos.cy + 'px';
+    wrap.style.transform = 'translateY(-50%)';
+    wrap.style.alignItems = 'flex-end'; // right-align for side opponents
+  } else {
+    wrap.style.left      = pos.cx + 'px';
+    wrap.style.top       = pos.cy + 'px';
+    wrap.style.transform = 'translateX(-50%)';
+  }
+
+  // Name + count
+  const nm = document.createElement('div'); nm.className='opp-name'; nm.textContent=name; wrap.appendChild(nm);
+  const ct = document.createElement('div'); ct.className='opp-count'; ct.textContent=handCount+' карт'; wrap.appendChild(ct);
+
+  // Row: fan + secret side by side
+  const row = document.createElement('div');
+  row.className = 'opp-hand-row';
+
+  // Face-down fan
+  // Для правых ботов (isSide) ограничиваем ширину веера так, чтобы левый край ≥ 280px
+  // (правый край стола). Доступно: 390-8(right)-5(gap)-24(secret)-280 = 73px для веера.
+  // OL*(n-1)+CW ≤ 73 → OL ≤ 49/(n-1). Для n=15 OL=3 → fanW=66px, старт=287px. ✓
+  const n=Math.min(handCount, isSide ? 15 : 10), CW=24, CH=36, MAXROT=20;
+  const OL = (isSide && n > 1) ? Math.min(8, Math.floor(49/(n-1))) : 8;
+  const fanW = OL*(n-1)+CW;
+  const fan = document.createElement('div');
+  fan.className = 'opp-fan';
+  fan.style.width  = fanW + 'px';
+  fan.style.height = (CH+8) + 'px';
+  fan.style.position = 'relative';
+  fan.style.flexShrink = '0';
+
+  for (let i=0;i<n;i++) {
+    const t=n>1?i/(n-1):0.5;
+    const card = document.createElement('div');
+    card.style.cssText = `
+      position:absolute; width:${CW}px; height:${CH}px; border-radius:4px;
+      background:linear-gradient(145deg,#1e4a90,#2c6dcd);
+      border:1px solid rgba(255,255,255,.22); box-shadow:0 2px 5px rgba(0,0,0,.5);
+      transform-origin:bottom center;
+      transform:translateX(${i*OL}px) translateY(${Math.pow(t-.5,2)*8}px) rotate(${(t-.5)*MAXROT*2}deg);
+      z-index:${i}; top:0; left:0;`;
+    fan.appendChild(card);
+  }
+  row.appendChild(fan);
+
+  // Secret card — фиолетовая, стоит рядом справа
+  const secret = document.createElement('div');
+  secret.className = 'secret-card';
+  secret.style.width  = CW + 'px';
+  secret.style.height = CH + 'px';
+  row.appendChild(secret);
+
+  wrap.appendChild(row);
+
+  // Thrown cards
+  const thr = buildThrownFan(thrown);
+  if (thr) wrap.appendChild(thr);
+
+  return wrap;
+}
+
+function renderOpponents(count) {
+  const c = document.getElementById('opps');
+  c.innerHTML = '';
+  LAYOUTS[count].forEach((pos,i) => c.appendChild(buildOpp(pos, OPP_NAMES[i], OPP_COUNTS[i], THROWN[i])));
+}
+
+// ─── Table ────────────────────────────────────────────────────────────────────
+function renderTable(scenario) {
+  if (scenario) currentScenario = scenario;
+  const sc = SCENARIOS[currentScenario];
+  const z  = document.getElementById('tableZone');
+  z.innerHTML = '';
+
+  const pairs = document.getElementById('maxTable').checked ? TABLE_MAX : sc.pairs;
+  pairs.forEach(p => {
+    const pair = document.createElement('div'); pair.className='table-pair';
+    if (p.slot === 'transfer') {
+      const slot = document.createElement('div'); slot.className='transfer-slot';
+      const icon = document.createElement('div'); icon.className='transfer-slot-icon';
+      icon.textContent='↻';
+      slot.appendChild(icon);
+      pair.appendChild(slot);
+    } else {
+      const atk = mkCard(p.a, false);
+      if (p.transfer) {
+        atk.style.borderColor = '#9b59b6';
+        atk.style.boxShadow   = '0 4px 12px rgba(0,0,0,.5), 0 0 0 2px #9b59b6, 0 0 14px rgba(155,89,182,.5)';
+      }
+      pair.appendChild(atk);
+      if (p.d) pair.appendChild(mkCard(p.d, true));
+    }
+    z.appendChild(pair);
+  });
+
+  // label
+  document.getElementById('attackLabel').innerHTML = `<span>${sc.label}</span>`;
+
+  // thrown to me
+  const wrap = document.getElementById('thrownToMeWrap');
+  const fanEl = document.getElementById('thrownToMeFan');
+  fanEl.innerHTML = '';
+  const thr = sc.thrownToMe;
+  if (thr && thr.length) {
+    const CW=28, CH=42, VIS=14, n=thr.length;
+    const totalW = VIS*(n-1)+CW;
+    wrap.style.display = 'flex';
+    fanEl.style.width   = totalW+'px';
+    fanEl.style.height  = CH+'px';
+    fanEl.style.position= 'relative';
+    thr.forEach((c,i) => {
+      const el = document.createElement('div');
+      el.className = 'thrown-card'+(c.red?' red':'');
+      el.style.cssText = `left:${i*VIS}px;width:${CW}px;height:${CH}px;z-index:${i};font-size:9px;padding:2px 3px;`;
+      el.innerHTML = `<span>${c.rank}</span><span>${c.suit}</span>`;
+      fanEl.appendChild(el);
+    });
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+function mkCard(c,isDef) {
+  const el = document.createElement('div');
+  el.className = 'table-card'+(c.red?' red':'')+(isDef?' defense':'');
+  el.innerHTML = `<div>${c.rank}<br>${c.suit}</div><div class="suit-center">${c.suit}</div><div style="transform:rotate(180deg)">${c.rank}<br>${c.suit}</div>`;
+  return el;
+}
+
+// ─── Discard — всегда закрытые рубашки ───────────────────────────────────────
+function buildDiscard() {
+  const s = document.getElementById('discardStack');
+  [-12,-3,9,-5,14].forEach((r,i) => {
+    const el=document.createElement('div'); el.className='discard-card';
+    el.style.cssText=`position:absolute;transform:rotate(${r}deg);top:${i}px;left:${i}px;z-index:${i};background:linear-gradient(145deg,#1e4a90,#2c6dcd);`;
+    s.appendChild(el);
+  });
+}
+
+// ─── Player hand ──────────────────────────────────────────────────────────────
+function buildHand() {
+  const fan=document.getElementById('handFan');
+  fan.innerHTML='';
+  const n=MY_CARDS.length, spread=210, maxRot=20;
+  MY_CARDS.forEach((c,i) => {
+    const t=n>1?i/(n-1):0.5;
+    const rot=(t-.5)*maxRot*2, xOff=(t-.5)*spread, yOff=Math.pow(t-.5,2)*28;
+    const el=document.createElement('div');
+    el.className='hand-card'+(c.red?' red':'');
+    el.style.cssText=`transform:translateX(${xOff}px) translateY(${yOff}px) rotate(${rot}deg);z-index:${i+1}`;
+    el.innerHTML=`<div>${c.rank}<br>${c.suit}</div><div class="sc">${c.suit}</div><div class="cb">${c.rank}<br>${c.suit}</div>`;
+    el.addEventListener('pointerdown',e=>{
+      e.stopPropagation();
+      fan.querySelectorAll('.hand-card.lifted').forEach(restore);
+      el.classList.add('lifted');
+      el.style.transform=`translateX(${xOff}px) translateY(${yOff-44}px) rotate(${rot}deg)`;
+      el.style.zIndex=60;
+    });
+    fan.appendChild(el);
+  });
+  function restore(el) {
+    const i=[...el.parentNode.children].indexOf(el);
+    const t=n>1?i/(n-1):0.5;
+    el.style.transform=`translateX(${(t-.5)*spread}px) translateY(${Math.pow(t-.5,2)*28}px) rotate(${(t-.5)*maxRot*2}deg)`;
+    el.style.zIndex=i+1; el.classList.remove('lifted');
+  }
+  document.addEventListener('pointerup',()=>fan.querySelectorAll('.hand-card.lifted').forEach(restore));
+}
+
+function setCount(n) {
+  document.querySelectorAll('.controls button').forEach((b,i)=>b.classList.toggle('active',i===n-2));
+  renderOpponents(n);
+}
+
+// Init: перевод карт
+document.getElementById('maxTable').checked = false;
+document.querySelector('.controls select').value = 'transfer';
+buildHand(); renderOpponents(2); renderTable('transfer'); buildDiscard();
+</script>
+</body>
+</html>

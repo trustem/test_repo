@@ -347,6 +347,10 @@ function dealRound() {
   sortAllHands();
   G.phase = 'attack';
   renderAll();
+  // Mobile: animate deal after render
+  if (window.innerWidth <= 600) {
+    animateDeal().catch(() => {});
+  }
   scheduleBot();
 }
 
@@ -1637,6 +1641,9 @@ const TABLE_POS_COORDS = {
 };
 
 function updateTablePosition() {
+  // On mobile, table is CSS-fixed at left:82px top:168px — skip dynamic positioning
+  if (window.innerWidth <= 600) return;
+
   const tableArea = document.querySelector('.table-area');
   if (!tableArea || !G) return;
 
@@ -1658,6 +1665,105 @@ function updateTablePosition() {
   tableArea.style.top  = `${(ay + dy) / 2}%`;
 }
 
+// ─── CARD FLIGHT ANIMATION ────────────────────────────────────────────────────
+const _sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function flyCardFromDeck(targetEl, faceUp = false, cardData = null) {
+  if (window.innerWidth > 600) return; // desktop: skip animation
+  const deckEl = document.getElementById('deck-stack-mobile') ||
+                 document.getElementById('deck-zone-mobile');
+  if (!deckEl || !targetEl) return;
+
+  const deckRect = deckEl.getBoundingClientRect();
+  const destRect = targetEl.getBoundingClientRect();
+  if (!deckRect.width || !destRect.width) return;
+
+  const fly = document.createElement('div');
+  fly.className = faceUp && cardData
+    ? `card flying ${(cardData.suit === 'hearts' || cardData.suit === 'diamonds') ? 'red' : 'black'}`
+    : 'card flying face-down';
+
+  if (faceUp && cardData) {
+    const sym = SUIT_SYM[cardData.suit] || '';
+    fly.innerHTML = `<div class="card-rank-suit-top">${cardData.rank}<br>${sym}</div>
+                     <div class="card-center">${sym}</div>`;
+  }
+
+  Object.assign(fly.style, {
+    left:   deckRect.left   + 'px',
+    top:    deckRect.top    + 'px',
+    width:  '44px',
+    height: '64px',
+    zIndex: '1000',
+    pointerEvents: 'none',
+    position: 'fixed',
+    transition: 'left .28s cubic-bezier(.25,.46,.45,.94), top .28s cubic-bezier(.25,.46,.45,.94), transform .28s ease, opacity .12s ease .2s',
+  });
+  document.body.appendChild(fly);
+
+  fly.getBoundingClientRect(); // force reflow
+
+  fly.style.left      = (destRect.left + destRect.width  / 2 - 22) + 'px';
+  fly.style.top       = (destRect.top  + destRect.height / 2 - 32) + 'px';
+  fly.style.transform = 'rotate(-6deg) scale(0.85)';
+  fly.style.opacity   = '0';
+
+  await _sleep(320);
+  fly.remove();
+}
+
+// Deal opening animation: fly cards one-by-one from deck to human hand
+async function animateDeal() {
+  if (window.innerWidth > 600) return;
+  const hi = humanPlayerIdx();
+  if (hi === -1) return;
+  const hand = document.getElementById('human-hand');
+  if (!hand) return;
+
+  // Fly 6 cards to human hand (face-up), then 1 secret (face-down)
+  for (let i = 0; i < Math.min(G.players[hi].hand.length, 6); i++) {
+    await flyCardFromDeck(hand, true, G.players[hi].hand[i]);
+    await _sleep(80);
+  }
+}
+
+// Mobile: show cards thrown to human player (nakiCards) above their hand
+function renderThrownToMe() {
+  if (window.innerWidth > 600) return;
+  const wrap = document.getElementById('thrown-to-me-wrap');
+  const fanEl = document.getElementById('thrown-to-me-fan');
+  if (!wrap || !fanEl) return;
+
+  const hi = humanPlayerIdx();
+  if (hi === -1 || !G) { wrap.style.display = 'none'; return; }
+
+  const p = G.players[hi];
+  const thrown = p.nakiCards || [];
+
+  if (!thrown.length) { wrap.style.display = 'none'; return; }
+
+  const CW = 28, CH = 42, VIS = 14;
+  fanEl.innerHTML = '';
+  fanEl.style.width = (VIS * (thrown.length - 1) + CW) + 'px';
+  fanEl.style.height = CH + 'px';
+  fanEl.style.position = 'relative';
+
+  thrown.forEach((card, i) => {
+    const el = document.createElement('div');
+    const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+    el.style.cssText = `
+      position:absolute;left:${i * VIS}px;width:${CW}px;height:${CH}px;z-index:${i};
+      border-radius:4px;background:#fefefe;border:1px solid rgba(0,0,0,.2);
+      box-shadow:1px 1px 5px rgba(0,0,0,.5);
+      font-size:9px;font-weight:900;color:${isRed ? '#c0392b' : '#111'};
+      display:flex;flex-direction:column;padding:2px 3px;`;
+    el.innerHTML = `<span>${card.rank}</span><span>${SUIT_SYM[card.suit]}</span>`;
+    fanEl.appendChild(el);
+  });
+
+  wrap.style.display = 'flex';
+}
+
 function renderAll() {
   renderTrump();
   renderDeck();
@@ -1667,11 +1773,15 @@ function renderAll() {
   renderActionButtons();
   renderPhase();
   updateTablePosition();
+  renderThrownToMe();
   if (typeof mpAfterRender === 'function') mpAfterRender();
 }
 
 function renderTrump() {
   if (!G || !G.trumpSuit) return;
+
+  // On mobile, trump is rendered inside renderDeck() mobile branch — skip desktop panel
+  if (window.innerWidth <= 600) return;
 
   // Update trump panel suit symbol
   const suitEl = document.getElementById('trump-panel-suit');
@@ -1705,6 +1815,83 @@ function renderTrump() {
 
 function renderDeck() {
   const count = G.deck.length;
+  const discardCount = G.discardPile ? G.discardPile.length : 0;
+
+  if (window.innerWidth <= 600) {
+    // ── Mobile: render mockup-style deck zone ──
+    const mobileCount = document.getElementById('deck-count-mobile');
+    if (mobileCount) mobileCount.textContent = count;
+
+    const mobileDiscard = document.getElementById('discard-count-mobile');
+    if (mobileDiscard) mobileDiscard.textContent = discardCount;
+
+    // Deck stack: 3 blue backs + trump peek + secret-under-trump
+    const stackEl = document.getElementById('deck-stack-mobile');
+    if (stackEl) {
+      stackEl.innerHTML = '';
+      if (count > 0) {
+        // 3 stacked blue backs
+        for (let i = 0; i < 3; i++) {
+          const back = document.createElement('div');
+          back.className = 'deck-back-stack';
+          stackEl.appendChild(back);
+        }
+        // Secret-under-trump (purple, decorative — always shown while deck has cards)
+        const sec = document.createElement('div');
+        sec.className = 'secret-under-trump';
+        stackEl.appendChild(sec);
+        // Trump peek card
+        if (G.trumpCard) {
+          const peek = document.createElement('div');
+          peek.className = 'trump-peek-mini';
+          const isRed = G.trumpCard.suit === 'hearts' || G.trumpCard.suit === 'diamonds';
+          if (!isRed) peek.classList.add('black');
+          peek.innerHTML = `${SUIT_SYM[G.trumpCard.suit]}<br>${G.trumpCard.rank}`;
+          stackEl.appendChild(peek);
+        }
+      } else {
+        // Empty deck — faded placeholder
+        const empty = document.createElement('div');
+        empty.className = 'deck-back-stack';
+        empty.style.opacity = '0.25';
+        stackEl.appendChild(empty);
+      }
+    }
+
+    // Trump card display (peeking from deck)
+    const trumpDisplay = document.getElementById('trump-card-display');
+    if (trumpDisplay) {
+      trumpDisplay.innerHTML = '';
+      if (G.trumpCard && count > 0) {
+        const isRed = G.trumpCard.suit === 'hearts' || G.trumpCard.suit === 'diamonds';
+        trumpDisplay.style.color = isRed ? '#e74c3c' : '#111';
+        trumpDisplay.innerHTML = `<span style="font-weight:900;font-size:12px">${SUIT_SYM[G.trumpCard.suit]}${G.trumpCard.rank}</span>`;
+        trumpDisplay.style.display = 'flex';
+      } else {
+        trumpDisplay.style.display = 'none';
+      }
+    }
+
+    // Discard stack: 5 randomized rotated card backs
+    const discardStackEl = document.getElementById('discard-stack-mobile');
+    if (discardStackEl) {
+      discardStackEl.innerHTML = '';
+      if (discardCount > 0) {
+        [-12, -3, 9, -5, 14].forEach((rot, i) => {
+          const card = document.createElement('div');
+          card.className = 'discard-card-mini';
+          card.style.transform = `rotate(${rot}deg)`;
+          card.style.top = i + 'px';
+          card.style.left = i + 'px';
+          card.style.zIndex = i;
+          discardStackEl.appendChild(card);
+        });
+      }
+    }
+    return;
+  }
+
+  // ── Desktop: original rendering ──
   const el = document.getElementById('deck-count');
   if (el) el.textContent = count;
 
@@ -1723,12 +1910,11 @@ function renderDeck() {
 
   // Discard pile count
   const discardEl = document.getElementById('discard-count');
-  if (discardEl) discardEl.textContent = G.discardPile ? G.discardPile.length : 0;
+  if (discardEl) discardEl.textContent = discardCount;
   const discardVis = document.getElementById('discard-visual');
   if (discardVis) {
-    const n = G.discardPile ? G.discardPile.length : 0;
-    discardVis.style.opacity = n > 0 ? '1' : '0.35';
-    discardVis.classList.toggle('has-cards', n > 0);
+    discardVis.style.opacity = discardCount > 0 ? '1' : '0.35';
+    discardVis.classList.toggle('has-cards', discardCount > 0);
   }
 }
 
@@ -1758,9 +1944,139 @@ const PLAYER_POS_MAP = {
   5: ['left', 'top-left', 'top', 'top-right', 'right'],
 };
 
+// Mobile: Avatar-style opponent rendering
+// Players area is a horizontal flex row at top of screen (CSS-positioned)
+function renderPlayersMobile(area) {
+  const hi = humanPlayerIdx();
+  const n = G.players.length;
+  const currentAttackerIdx = G.transferChain && G.transferChain.length > 0
+    ? G.transferChain[G.transferChain.length - 1] : G.attackerIdx;
+
+  playerPosMap = {};
+  if (hi !== -1) playerPosMap[hi] = 'bottom';
+
+  const nonHumanOrdered = [];
+  for (let i = 1; i < n; i++) {
+    const idx = (hi + i) % n;
+    nonHumanOrdered.push({ p: G.players[idx], pi: idx });
+  }
+
+  // Assign positions for table placement logic (all opponents are "top" for simplicity on mobile)
+  nonHumanOrdered.forEach(({ pi }, i) => {
+    playerPosMap[pi] = i === 0 ? 'top' : 'top-right';
+  });
+
+  // Build each avatar block
+  nonHumanOrdered.forEach(({ p, pi }) => {
+    const isAttacker = pi === currentAttackerIdx;
+    const isDefender = pi === G.defenderIdx;
+
+    const block = document.createElement('div');
+    block.className = 'mobile-avatar-block';
+
+    // Mini fanned card backs above avatar (max 8 visible)
+    const fanCount = Math.min(p.hand.length, 8);
+    if (fanCount > 0) {
+      const fanEl = document.createElement('div');
+      fanEl.className = 'mobile-opp-fan';
+      const CW = 14, CH = 20, OL = Math.min(10, Math.floor(46 / Math.max(fanCount - 1, 1)));
+      const fanW = OL * (fanCount - 1) + CW;
+      fanEl.style.width = fanW + 'px';
+      for (let i = 0; i < fanCount; i++) {
+        const t = fanCount > 1 ? i / (fanCount - 1) : 0.5;
+        const c = document.createElement('div');
+        if (debugMode && p.hand[i]) {
+          const card = p.hand[i];
+          const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+          c.style.cssText = `
+            position:absolute;width:${CW}px;height:${CH}px;border-radius:2px;
+            background:#fefefe;border:1px solid rgba(0,0,0,.2);
+            font-size:5px;font-weight:900;color:${isRed?'#c0392b':'#111'};
+            display:flex;align-items:center;justify-content:center;
+            transform-origin:bottom center;
+            transform:translateX(${i*OL}px) rotate(${(t-.5)*30}deg);
+            z-index:${i};top:0;left:0;`;
+          c.textContent = card.rank + SUIT_SYM[card.suit];
+        } else {
+          c.style.cssText = `
+            position:absolute;width:${CW}px;height:${CH}px;border-radius:2px;
+            background:linear-gradient(145deg,#1b5e20,#2e7d32);
+            background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0,rgba(255,255,255,.05) 1px,transparent 1px,transparent 4px);
+            border:1px solid rgba(255,255,255,.15);
+            transform-origin:bottom center;
+            transform:translateX(${i*OL}px) rotate(${(t-.5)*30}deg);
+            z-index:${i};top:0;left:0;`;
+        }
+        fanEl.appendChild(c);
+      }
+      block.appendChild(fanEl);
+    }
+
+    // Avatar circle
+    const circle = document.createElement('div');
+    circle.className = 'mobile-avatar-circle';
+    if (isAttacker) circle.classList.add('is-attacker');
+    else if (isDefender) circle.classList.add('is-defender');
+    if (p.exited) circle.classList.add('is-out');
+    circle.textContent = '🤖';
+
+    // Card count badge
+    const badge = document.createElement('span');
+    badge.className = 'mobile-card-badge';
+    badge.textContent = p.hand.length + (p.secretCard && !p.secretTaken ? '+' : '');
+    circle.appendChild(badge);
+
+    // Secret dot indicator
+    if (p.secretCard && !p.secretTaken) {
+      const dot = document.createElement('div');
+      dot.className = 'mobile-secret-dot';
+      circle.appendChild(dot);
+    }
+
+    block.appendChild(circle);
+
+    // Name label
+    const nm = document.createElement('div');
+    nm.className = 'mobile-avatar-name';
+    nm.textContent = p.name;
+    block.appendChild(nm);
+
+    area.appendChild(block);
+  });
+
+  // Human nameplate at bottom
+  if (hi !== -1) {
+    const hp = G.players[hi];
+    const hbox = document.createElement('div');
+    hbox.className = 'player-info-box player-pos-bottom';
+    if (hi === currentAttackerIdx) hbox.classList.add('attacker');
+    if (hi === G.defenderIdx) hbox.classList.add('defender');
+    if (isHumanTurn()) hbox.classList.add('active-turn');
+
+    let hbadge = '';
+    if (hi === G.defenderIdx) hbadge = '<span class="player-role-badge badge-defender">Защита</span>';
+    else if (hi === currentAttackerIdx) hbadge = '<span class="player-role-badge badge-attacker">Атака</span>';
+
+    const hCountStr = hp.hand.length + (hp.secretCard && !hp.secretTaken ? '+1' : '');
+    hbox.innerHTML = `
+      <div class="player-nameplate human">
+        <span class="player-nameplate-name">Вы</span>
+        <span class="player-nameplate-count">Карт: ${hCountStr}</span>
+      </div>
+      ${hbadge}
+    `;
+    area.appendChild(hbox);
+  }
+}
+
 function renderPlayers() {
   const area = document.getElementById('players-area');
   area.innerHTML = '';
+
+  if (window.innerWidth <= 600) {
+    renderPlayersMobile(area);
+    return;
+  }
 
   const hi = humanPlayerIdx();
   const n = G.players.length;
@@ -2060,6 +2376,22 @@ function renderTable() {
 
     table.appendChild(div);
   });
+
+  // Mobile: show transfer slot if human defender can transfer
+  if (window.innerWidth <= 600 && isDefending && G.tablePairs.length > 0) {
+    const hi2 = hi; // alias for clarity
+    const canTransferAny = G.players[hi2].hand.some(c => canTransfer(c, G.tablePairs, G.trumpSuit));
+    if (canTransferAny) {
+      const slotDiv = document.createElement('div');
+      slotDiv.className = 'table-pair';
+      const slot = document.createElement('div');
+      slot.className = 'transfer-slot';
+      slot.textContent = '↻';
+      slot.title = 'Перевод';
+      slotDiv.appendChild(slot);
+      table.appendChild(slotDiv);
+    }
+  }
 }
 
 function clearDragHighlights() {
@@ -2078,6 +2410,79 @@ function renderHumanHand() {
   const p = G.players[hi];
   const isMyTurn = isHumanTurn();
 
+  // ── Mobile: arc fan layout ──
+  if (window.innerWidth <= 600) {
+    const allCards = [...p.hand];
+    const count = allCards.length;
+    if (count === 0) return;
+
+    const containerW = hand.parentElement ? hand.parentElement.clientWidth : window.innerWidth;
+    // Compute fan parameters to fit all cards in screen width
+    const CW = 52;
+    const maxXStep = Math.min(38, (containerW - CW - 20) / Math.max(count - 1, 1));
+    const xStep = Math.max(14, maxXStep);
+    const maxRot = Math.min(18, 90 / Math.max(count, 1));
+    const totalFanW = xStep * (count - 1) + CW;
+    const startX = (containerW - totalFanW) / 2;
+
+    allCards.forEach((card, i) => {
+      const el = makeCardElement(card, true);
+      const t = count > 1 ? i / (count - 1) : 0.5;
+      const rot = (t - 0.5) * maxRot * 2;
+      const xOff = startX + i * xStep;
+      const yLift = Math.pow(t - 0.5, 2) * 14;
+
+      el.style.left = xOff + 'px';
+      el.style.bottom = yLift + 'px';
+      el.style.transform = `rotate(${rot}deg)`;
+      el.style.transformOrigin = 'bottom center';
+      el.style.zIndex = i + 1;
+      el.style.transition = 'transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s, bottom .18s';
+
+      const isSelected = UI.selectedCards.includes(card.id);
+      if (isSelected) {
+        el.classList.add('selected');
+        el.style.bottom = (yLift + 28) + 'px';
+        el.style.zIndex = 60;
+      }
+
+      if (isMyTurn) {
+        el.classList.add('clickable');
+        if (G.phase === 'attack' && !G.attackDone && isValidAttackCard(card)) el.classList.add('valid-attack');
+        else if (G.phase === 'attack' && G.attackDone && G.rightNeighborThrowing && nominalOnTable(cardNominal(card))) el.classList.add('valid-attack');
+        else if (G.phase === 'defense') {
+          if (UI.selectedAttackPairIdx !== null) {
+            const pair = G.tablePairs[UI.selectedAttackPairIdx];
+            if (pair && canBeat(pair.attack, card, G.trumpSuit)) el.classList.add('valid-target');
+          }
+          if (canTransfer(card, G.tablePairs, G.trumpSuit)) el.classList.add('valid-attack');
+        }
+        el.addEventListener('click', () => humanCardClick(card));
+      }
+
+      hand.appendChild(el);
+    });
+
+    // Secret card: show as purple dot at right side of hand if hidden, face-up if hand empty
+    if (p.secretCard && !p.secretTaken) {
+      const sec = document.createElement('div');
+      if (p.hand.length === 0) {
+        const lbl = cardLabel(p.secretCard);
+        const isRed = p.secretCard.suit === 'hearts' || p.secretCard.suit === 'diamonds';
+        sec.className = `card own-secret ${isRed ? 'red' : 'black'}`;
+        sec.style.cssText = 'left:50%;transform:translateX(-50%);bottom:0;width:52px;height:76px;';
+        sec.innerHTML = `<div class="card-rank-suit-top">${lbl.top}</div><div class="card-center">${lbl.center}</div>`;
+      } else {
+        sec.className = 'card secret-back';
+        const lastX = startX + (count - 1) * xStep + CW + 6;
+        sec.style.cssText = `left:${lastX}px;bottom:0;width:32px;height:46px;opacity:.8;`;
+      }
+      hand.appendChild(sec);
+    }
+    return;
+  }
+
+  // ── Desktop: original rendering ──
   p.hand.forEach(card => {
     const el = makeCardElement(card, true);
 
