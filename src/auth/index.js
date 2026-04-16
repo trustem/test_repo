@@ -348,12 +348,8 @@ export async function linkGoogleAccount() {
   const auth     = getAuth(app);
   const provider = new GoogleAuthProvider();
 
-  // Capacitor native: redirect flow navigates WKWebView away with no way back
-  if (isCapacitorNative()) {
-    throw Object.assign(new Error('Google-вход доступен только в веб-версии приложения'), { code: 'auth/capacitor-unsupported' });
-  }
-
-  // Mobile browser: popups are blocked — use redirect flow instead
+  // Mobile browser (not Capacitor): popups are blocked — use redirect flow instead
+  // Capacitor native falls through to popup code below (WKWebView supports popups)
   if (isMobileBrowser()) {
     if (auth.currentUser) {
       await linkWithRedirect(auth.currentUser, provider);
