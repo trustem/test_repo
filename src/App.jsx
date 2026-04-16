@@ -189,12 +189,17 @@ export default function App() {
     engineRef.current.startGame(playerDefs);
   }, []);
 
+  const withTimeout = (promise, ms = 10000) => Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Нет ответа от сервера (${ms / 1000}с). Проверь интернет-соединение.`)), ms)),
+  ]);
+
   const handleCreateRoom = useCallback(async (hostName, maxPlayers) => {
     setLobbyError(null);
     try {
       mpRef.current?.stopBrowsing();
       saveUserName(firebaseUidRef.current, hostName);
-      await mpRef.current.createRoom(hostName, maxPlayers);
+      await withTimeout(mpRef.current.createRoom(hostName, maxPlayers));
       setMpState(mpRef.current.getState());
       setScreen('waiting');
     } catch (e) { setLobbyError(e.message); }
@@ -205,7 +210,7 @@ export default function App() {
     try {
       mpRef.current?.stopBrowsing();
       saveUserName(firebaseUidRef.current, playerName);
-      await mpRef.current.joinRoom(code, playerName);
+      await withTimeout(mpRef.current.joinRoom(code, playerName));
       setMpState(mpRef.current.getState());
       setScreen('waiting');
     } catch (e) { setLobbyError(e.message); }

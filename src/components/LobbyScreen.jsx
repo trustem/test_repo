@@ -13,12 +13,6 @@ export default function LobbyScreen({ rooms, userProfile = {}, error, onErrorDis
     if (name) localStorage.setItem('bardak_player_name', name);
   }, [name]);
 
-  const handleCreate = async () => {
-    const n = name.trim() || 'Хост';
-    if (n !== 'Хост') localStorage.setItem('bardak_player_name', n);
-    await onCreateRoom(n, 4);
-  };
-
   const handleJoin = (code) => {
     const n = name.trim() || 'Игрок';
     onJoinRoom(code, n);
@@ -29,6 +23,15 @@ export default function LobbyScreen({ rooms, userProfile = {}, error, onErrorDis
   const googleEmail = googleLinked ? getGoogleEmail() : null;
 
   const [googleError, setGoogleError] = useState(null);
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    const n = name.trim() || 'Хост';
+    if (n !== 'Хост') localStorage.setItem('bardak_player_name', n);
+    setCreating(true);
+    await onCreateRoom(n, 4);
+    setCreating(false);
+  };
 
   const handleGoogleLink = async () => {
     setGoogleError(null);
@@ -129,8 +132,8 @@ export default function LobbyScreen({ rooms, userProfile = {}, error, onErrorDis
           </div>
         )}
 
-        <button className="start-button lobby-create-btn" onClick={handleCreate}>
-          + Создать игру
+        <button className="start-button lobby-create-btn" onClick={handleCreate} disabled={creating}>
+          {creating ? 'Подключение...' : '+ Создать игру'}
         </button>
         <button className="start-button lobby-solo-btn" onClick={onSolo}>
           Играть с ботами
