@@ -915,7 +915,11 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       G.players[defenderIdx].score = Math.min(G.players[defenderIdx].score + 1, SCORE_LADDER.length - 1);
       removeFromHand(throwerIdx, card);
       G.players[defenderIdx].nakiCards.push(card);
-      G.nakiPending = [];
+      // If defender still has unique-lowest score, keep all pending (each player
+      // can throw again until they press pass). Otherwise end the throw round.
+      if (!isUniqueLowestRankPlayer(defenderIdx)) {
+        G.nakiPending = [];
+      }
     }
     G.tablePairs.push({ attack: card, defense: null, attacker: throwerIdx, isNaki: true });
     // Accumulate into per-player display array (persists until dealRound)
@@ -1291,7 +1295,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     G.trumpChoicePhase = false;
     G.trumpChooserIdx = -1;
     addLog(`${G.players[playerIdx].name} выбирает козырь: ${SUIT_SYM[suit]}`, 'system');
-    G.trumpAnnouncement = { suit, key: Date.now(), playerName: G.players[playerIdx].name };
+    G.trumpAnnouncement = { suit, key: Date.now(), playerName: G.players[playerIdx].name, chosen: true };
     const postAction = G.postDiceAction;
     G.postDiceAction = null;
     if (postAction === 'deal') {

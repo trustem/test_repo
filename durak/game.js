@@ -2044,29 +2044,6 @@ function renderPlayersMobile(area) {
     area.appendChild(block);
   });
 
-  // Human nameplate at bottom
-  if (hi !== -1) {
-    const hp = G.players[hi];
-    const hbox = document.createElement('div');
-    hbox.className = 'player-info-box player-pos-bottom';
-    if (hi === currentAttackerIdx) hbox.classList.add('attacker');
-    if (hi === G.defenderIdx) hbox.classList.add('defender');
-    if (isHumanTurn()) hbox.classList.add('active-turn');
-
-    let hbadge = '';
-    if (hi === G.defenderIdx) hbadge = '<span class="player-role-badge badge-defender">Защита</span>';
-    else if (hi === currentAttackerIdx) hbadge = '<span class="player-role-badge badge-attacker">Атака</span>';
-
-    const hCountStr = hp.hand.length + (hp.secretCard && !hp.secretTaken ? '+1' : '');
-    hbox.innerHTML = `
-      <div class="player-nameplate human">
-        <span class="player-nameplate-name">Вы</span>
-        <span class="player-nameplate-count">Карт: ${hCountStr}</span>
-      </div>
-      ${hbadge}
-    `;
-    area.appendChild(hbox);
-  }
 }
 
 function renderPlayers() {
@@ -2177,30 +2154,6 @@ function renderPlayers() {
     area.appendChild(box);
   });
 
-  // Human player badge (bottom-center, above hand)
-  if (hi !== -1) {
-    const hp = G.players[hi];
-    const hbox = document.createElement('div');
-    hbox.className = 'player-info-box player-pos-bottom';
-    if (hi === currentAttackerIdx) hbox.classList.add('attacker');
-    if (hi === G.defenderIdx) hbox.classList.add('defender');
-    if (isHumanTurn()) hbox.classList.add('active-turn');
-
-    let hbadge = '';
-    if (hi === G.defenderIdx) hbadge = '<span class="player-role-badge badge-defender">Защита</span>';
-    else if (hi === currentAttackerIdx) hbadge = '<span class="player-role-badge badge-attacker">Атака</span>';
-
-    const hCountStr = hp.hand.length + (hp.secretCard && !hp.secretTaken ? '+1' : '');
-    hbox.innerHTML = `
-      <div class="player-nameplate human">
-        <span class="player-nameplate-name">Вы</span>
-        <span class="player-nameplate-count">Карт: ${hCountStr}</span>
-      </div>
-      ${hbadge}
-      ${renderNakiCards(hi)}
-    `;
-    area.appendChild(hbox);
-  }
 }
 
 function renderScoreDots(score) {
@@ -2733,16 +2686,6 @@ function renderActionButtons() {
       if (!canAtk) attackBtn.disabled = true;
       container.appendChild(attackBtn);
     } else if (allBeaten() || G.defenderTaking) {
-      // Can throw more OR declare done
-      const throwBtn = btn('Подкинуть', 'btn-attack', () => {
-        if (canAtk) {
-          UI.selectedCards = [];
-          mpAction('throw', { playerIdx: hi, cardId: selectedCards[0].id },
-            () => { saveUndoState(); doThrow(hi, selectedCards[0]); });
-        }
-      });
-      if (!canAtk) throwBtn.disabled = true;
-      container.appendChild(throwBtn);
       container.appendChild(btn('Готово', 'btn-done', () => {
         UI.selectedCards = [];
         mpAction('attackDone', { playerIdx: hi }, () => { declareAttackDone(hi); });
@@ -2751,19 +2694,6 @@ function renderActionButtons() {
   }
 
   if (G.phase === 'attack' && G.attackDone && G.rightNeighborThrowing && rightNeighborOfDefender() === hi) {
-    // Right neighbor can throw or pass
-    const selectedCards = UI.selectedCards.map(id => p.hand.find(c => c.id === id)).filter(Boolean);
-    const canThrow = selectedCards.length === 1 && nominalOnTable(cardNominal(selectedCards[0]))
-      && G.tablePairs.length < getAttackLimit();
-    const throwBtn = btn('Подкинуть', 'btn-attack', () => {
-      if (canThrow) {
-        UI.selectedCards = [];
-        mpAction('throw', { playerIdx: hi, cardId: selectedCards[0].id },
-          () => { saveUndoState(); doThrow(hi, selectedCards[0]); });
-      }
-    });
-    if (!canThrow) throwBtn.disabled = true;
-    container.appendChild(throwBtn);
     container.appendChild(btn('Пас', 'btn-pass', () => {
       UI.selectedCards = [];
       mpAction('rightNeighborPass', { playerIdx: hi }, () => { doRightNeighborPass(hi); });

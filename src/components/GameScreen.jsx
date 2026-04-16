@@ -7,7 +7,7 @@ import DiscardPile from './DiscardPile';
 import ActionButtons from './ActionButtons';
 import GameLog from './GameLog';
 import DiceRollOverlay from './DiceRollOverlay';
-import { SUIT_SYM, isJoker, SCORE_LADDER, SUITS } from '../engine/index.js';
+import { SUIT_SYM, isJoker, SCORE_LADDER, SUITS, cardNominal } from '../engine/index.js';
 
 // Horizontal fan: ghost shown only when no cards thrown yet; cards shift sideways
 const NAKI_OFFSET = 14;
@@ -167,6 +167,58 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
     const t = setTimeout(() => setTrumpPopup(null), 1400);
     return () => clearTimeout(t);
   }, [G?.trumpAnnouncement?.key]);
+  // ─── Auto-pass / auto-done when human has no valid move ──────
+  const humanHand = hi !== -1 ? G?.players?.[hi]?.hand : null;
+  useEffect(() => {
+    if (!G || G.gameOver || hi === -1) return;
+    const p = G.players[hi];
+    if (!p) return;
+
+    // Auto-done: left thrower, cards on table, nothing throwable,
+    // and either hand empty OR the Готово button would be visible (allBeaten/defenderTaking)
+    if (G.phase === 'attack' && !G.attackDone && engine.leftThrowerIdx() === hi
+        && G.tablePairs.length > 0) {
+      const canThrowMore = p.hand.length > 0
+        && p.hand.some(c => engine.nominalOnTable(cardNominal(c)))
+        && G.tablePairs.length < engine.getAttackLimit();
+      const readyForDone = p.hand.length === 0 || engine.allBeaten() || G.defenderTaking;
+      if (!canThrowMore && readyForDone) {
+        engine.declareAttackDone(hi);
+        return;
+      }
+    }
+
+    // Auto-pass: right-neighbor throw, no throwable cards
+    if (G.phase === 'attack' && G.attackDone && G.rightNeighborThrowing
+        && engine.rightNeighborOfDefender() === hi) {
+      const canThrow = p.hand.some(c => engine.nominalOnTable(cardNominal(c)))
+                       && G.tablePairs.length < engine.getAttackLimit();
+      if (!canThrow) { engine.doRightNeighborPass(hi); return; }
+    }
+
+    // Auto-pass: transfer-throw phase, no matching nominal or limit reached
+    if (G.transferThrowPhase && G.transferThrowQueue?.length > 0
+        && G.transferThrowQueue[0] === hi) {
+      const canThrow = p.hand.length > 0
+        && p.hand.some(c => cardNominal(c) === G.transferThrowNominal)
+        && G.tablePairs.length < engine.getAttackLimit();
+      if (!canThrow) { engine.doTransferThrowPass(hi); return; }
+    }
+
+    // Auto-pass: nakidyvanie phase 2, no matching cards
+    if (G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length === 0
+        && G.nakiPending.length > 0 && G.nakiPending[0] === hi) {
+      const noMatch = G.nakiJokerMode
+        ? !p.hand.some(c => isJoker(c))
+        : !p.hand.some(c => cardNominal(c) === SCORE_LADDER[G.players[G.defenderIdx].score]);
+      if (noMatch) { engine.doNakiPass(hi); return; }
+    }
+  }, [
+    G?.phase, G?.attackDone, G?.rightNeighborThrowing, G?.transferThrowPhase,
+    G?.transferThrowQueue, G?.transferThrowNominal, G?.nakiPending, G?.nakiGiveToHandPending,
+    G?.nakiJokerMode, G?.tablePairs?.length, G?.defenderTaking, humanHand?.length,
+  ]);
+
   const isMobileView = window.innerWidth <= 600;
 
   return (
@@ -220,6 +272,11 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
       {isMobileView && (
         <>
           <div className="deck-zone-mobile" style={{ display: 'block' }}>
+            {G.trumpSuit && (
+              <div className={`trump-indicator-mobile ${G.trumpSuit}`}>
+                {SUIT_SYM[G.trumpSuit]}
+              </div>
+            )}
             <div className="deck-count-mobile">{G.deck.length}</div>
             <DeckPile
               deckCount={G.deck.length}
@@ -259,7 +316,7 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
 
       {/* Human hand */}
       {humanPlayer && (
-        <div className="human-area">
+        <div className={['human-area', hi === G.attackerIdx ? 'attacker' : '', hi === G.defenderIdx ? 'defender' : ''].filter(Boolean).join(' ')}>
           {/* Naki pile — ghost shows target nominal, thrown cards stack on top */}
           {G.phase !== 'deal' && G.phase !== 'roundover' && (
             <NakiPile
@@ -316,7 +373,11 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
       {trumpPopup && (
         <div className="trump-announcement-overlay">
           <div className="trump-announcement-box">
-            {trumpPopup.secretOnly ? (
+            {trumpPopup.chosen ? (
+              <div className="trump-announcement-text">
+                {trumpPopup.playerName} выбрал {SUIT_SYM[trumpPopup.suit]}
+              </div>
+            ) : trumpPopup.secretOnly ? (
               <div className="trump-announcement-text">
                 {trumpPopup.playerName} открыл потайную карту
               </div>

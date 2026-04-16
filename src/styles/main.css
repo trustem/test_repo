@@ -1,5 +1,5 @@
 /* =====================================================================
-   БАРДАК — React App Styles
+   БАРДАК — React App Styles v2 (side-bot-fan)
    Adapted from durak/style.css for React components
    ===================================================================== */
 
@@ -105,13 +105,38 @@ html, body, #root {
 }
 .screen.active { display: flex; align-items: center; justify-content: center; }
 
-/* Background for lobby/setup/gameover screens */
+/* Background for lobby/setup/gameover screens — same dark grain as game screen */
 .screen.active.lobby-screen,
 .screen.active.setup-screen,
 .screen.active.gameover-screen {
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 50%, rgba(100,50,16,.4) 0%, transparent 70%),
-    linear-gradient(160deg, var(--wood-dark) 0%, var(--wood) 50%, var(--wood-dark) 100%);
+  background-color: var(--wood);
+  background-image:
+    radial-gradient(ellipse 105% 105% at 50% 50%,
+      transparent 45%, rgba(0,0,0,.55) 100%),
+    radial-gradient(ellipse 55% 50% at 50% 48%,
+      rgba(140,70,20,.12) 0%, transparent 70%),
+    repeating-linear-gradient(88deg,
+      transparent 0, transparent 9px,
+      rgba(0,0,0,.032) 9px, rgba(0,0,0,.032) 10px,
+      transparent 10px, transparent 20px,
+      rgba(255,255,255,.014) 20px, rgba(255,255,255,.014) 21px
+    ),
+    repeating-linear-gradient(91deg,
+      transparent 0, transparent 16px,
+      rgba(0,0,0,.025) 16px, rgba(0,0,0,.025) 17px,
+      transparent 17px, transparent 35px
+    ),
+    repeating-linear-gradient(89deg,
+      rgba(0,0,0,.06) 0, rgba(0,0,0,.06) 3px,
+      transparent 3px, transparent 55px,
+      rgba(0,0,0,.04) 55px, rgba(0,0,0,.04) 56px,
+      transparent 56px, transparent 90px
+    ),
+    linear-gradient(172deg,
+      #3d1808 0%, #5c2a0c 12%, #7a3c16 28%,
+      #5a2a0c 42%, #6e3412 55%, #7c3e18 68%,
+      #5c2a0c 80%, #3d1808 100%
+    );
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -377,8 +402,36 @@ html, body, #root {
 .badge-defender { background: rgba(231,76,60,.25);  color: var(--red);    border: 1px solid rgba(231,76,60,.35); }
 .badge-out      { background: rgba(0,0,0,.35); color: var(--text-dim); border: 1px solid var(--border); }
 
-.player-info-box.attacker .player-nameplate  { border-color: rgba(232,160,32,.55); box-shadow: 0 0 14px rgba(232,160,32,.2); }
-.player-info-box.defender .player-nameplate  { border-color: rgba(231,76,60,.55);  box-shadow: 0 0 14px rgba(231,76,60,.2); }
+/* Attacker: green outline around the entire bot box */
+/* Attacker: red outline */
+.player-info-box.attacker {
+  outline: 2px solid rgba(231, 76, 60, .85);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+/* Defender: blue outline */
+.player-info-box.defender {
+  outline: 2px solid rgba(52, 152, 219, .85);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+/* Human area attacker/defender — drop-shadow follows actual card shapes, not the box */
+.human-area.attacker {
+  filter:
+    drop-shadow(-2px  0   0 rgba(231,76,60,1))
+    drop-shadow( 2px  0   0 rgba(231,76,60,1))
+    drop-shadow( 0   -2px 0 rgba(231,76,60,1))
+    drop-shadow( 0    2px 0 rgba(231,76,60,1))
+    drop-shadow( 0    0   4px rgba(231,76,60,.55));
+}
+.human-area.defender {
+  filter:
+    drop-shadow(-2px  0   0 rgba(52,152,219,1))
+    drop-shadow( 2px  0   0 rgba(52,152,219,1))
+    drop-shadow( 0   -2px 0 rgba(52,152,219,1))
+    drop-shadow( 0    2px 0 rgba(52,152,219,1))
+    drop-shadow( 0    0   4px rgba(52,152,219,.55));
+}
 .player-info-box.active-turn .player-nameplate { border-color: rgba(46,204,113,.6); box-shadow: 0 0 14px rgba(46,204,113,.2); }
 .player-info-box.exited { opacity: .3; filter: grayscale(.6); }
 
@@ -648,13 +701,13 @@ html, body, #root {
    SETUP / LOBBY
    ═══════════════════════════════════════════════════════════════════════ */
 .setup-container {
-  background: var(--overlay-warm);
+  background: rgba(18, 7, 2, 0.72);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-hi);
+  border: 1px solid rgba(255,220,140,.14);
   border-radius: var(--r-xl);
   padding: 44px 52px;
-  box-shadow: var(--sh-lg), inset 0 1px 0 rgba(255,220,140,.08);
+  box-shadow: var(--sh-lg), inset 0 1px 0 rgba(255,220,140,.07);
   max-width: 500px;
   width: 92%;
   text-align: center;
@@ -1532,6 +1585,20 @@ html, body, #root {
     --btn-beat-m:  #27ae60;
   }
 
+  /* Trump suit indicator above mobile deck */
+  .trump-indicator-mobile {
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1;
+    text-align: center;
+    text-shadow: 0 2px 8px rgba(0,0,0,.9);
+    margin-bottom: 1px;
+  }
+  .trump-indicator-mobile.hearts,
+  .trump-indicator-mobile.diamonds { color: #e74c3c; }
+  .trump-indicator-mobile.spades,
+  .trump-indicator-mobile.clubs   { color: #f0ede0; }
+
   /* Felt background on mobile */
   .screen.active.game-screen {
     background: radial-gradient(ellipse at 50% 30%, #4a6d8c 0%, #2a4a6a 55%, #1a3050 100%) !important;
@@ -1544,7 +1611,7 @@ html, body, #root {
   /* Deck zone: bottom-left */
   .deck-zone-mobile {
     position: absolute;
-    left: max(8px, var(--sal)); bottom: calc(196px + var(--sab));
+    left: max(8px, var(--sal)); bottom: calc(300px + var(--sab));
     z-index: 15;
     flex-direction: column;
     align-items: center;
@@ -1719,9 +1786,78 @@ html, body, #root {
     margin-bottom: 4px; text-align: center;
   }
 
-  /* Bot fan on mobile */
-  .bot-fan { width: 84px; height: 62px; }
-  .fan-card { width: 36px; height: 52px; margin-left: -18px; }
+  /* Bot fan on mobile — reduced size to free up table space */
+  .bot-fan { width: 60px; height: 46px; }
+  .fan-card { width: 26px; height: 38px; margin-left: -14px; }
+
+  /* ── Side bot fan (compact, right column) ─────────────────────────────── */
+  /* Card styles mirror .fan-card but smaller; size/position set inline via JS */
+  .side-fan-card {
+    position: absolute;
+    border-radius: 3px;
+    background-color: var(--card-back);
+    background-image:
+      repeating-linear-gradient(45deg,
+        transparent 0, transparent 4px,
+        rgba(255,255,255,.06) 4px, rgba(255,255,255,.06) 5px);
+    border: 1.5px solid rgba(255,255,255,.3);
+    box-shadow: 1px 2px 5px rgba(0,0,0,.5);
+  }
+
+  /* Compact inline secret card shown next to SideBotFan */
+  .side-secret-mini {
+    width: 16px;
+    height: 24px;
+    border-radius: 3px;
+    background-color: #5b21b6;
+    background-image: radial-gradient(ellipse 70% 80% at 50% 50%, rgba(167,139,250,.2) 0%, transparent 100%);
+    border: 1px solid rgba(167,139,250,.45);
+    box-shadow: 0 2px 6px rgba(0,0,0,.5);
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-start;
+    padding: 2px 2px;
+    font-size: 7px;
+    font-weight: 800;
+  }
+  .side-secret-mini.secret-revealed {
+    background: #fff;
+    border: 1.5px solid var(--gold);
+    color: #000;
+  }
+  .side-secret-mini.red { color: var(--red-suit); }
+
+  /* Row that holds fan + secret card side-by-side */
+  .side-bot-hand-row {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  /* ── Side bot container (right column) ───────────────────────────────── */
+  .side-bot-box {
+    position: absolute !important;
+    right: 2px !important;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end !important; /* right-aligned */
+    gap: 2px;
+    pointer-events: all;
+  }
+  .side-bot-box .player-nameplate {
+    text-align: right;
+  }
+  .side-bot-box .naki-panel {
+    align-self: flex-end;
+  }
+
+  /* ── Top bots (mobile): positioned by inline left + this class ─────── */
+  .player-pos-top-mobile {
+    position: absolute !important;
+    top: 52px !important;
+    /* left set inline per bot */
+  }
 
   /* Opponents: absolute positioning around the table (same as desktop) */
   .players-area {
@@ -1738,7 +1874,7 @@ html, body, #root {
   .player-nameplate-name { font-size: .78rem; max-width: 70px; }
   .player-nameplate-count { font-size: .72rem; }
 
-  /* Left/right players: shift up to avoid deck/discard zones */
+  /* Legacy desktop-style positions kept for fallback */
   .player-pos-left  { left: 2px !important; top: 32% !important; transform: translateY(-50%) !important; }
   .player-pos-right { right: 2px !important; top: 32% !important; transform: translateY(-50%) !important; }
   .player-pos-top   { top: 52px !important; }
@@ -1831,15 +1967,17 @@ html, body, #root {
   /* Dense-hand doesn't apply on mobile (cards are absolutely positioned) */
   .human-hand.dense-hand .card { margin-right: 0; }
 
-  /* Action buttons */
+  /* Action buttons — compact vertical column, below the deck (lower-left) */
   .action-buttons {
     bottom: calc(196px + var(--sab)) !important;
-    left: max(4px, var(--sal)) !important;
-    right: max(4px, var(--sar)) !important;
-    justify-content: center !important;
+    left: max(8px, var(--sal)) !important;
+    right: auto !important;
+    justify-content: flex-start !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
     gap: 6px !important;
-    flex-wrap: wrap !important;
-    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    max-width: 48% !important;
   }
   .action-buttons .action-btn {
     border-radius: 20px !important;
@@ -1849,9 +1987,9 @@ html, body, #root {
     white-space: nowrap;
   }
   .action-buttons .btn-take {
-    width: 58px !important; height: 80px !important;
-    border-radius: 10px !important;
-    padding: 0 !important; font-size: 13px !important;
+    width: auto !important; height: auto !important;
+    border-radius: 20px !important;
+    padding: 8px 14px !important; font-size: .82rem !important;
     background: var(--btn-take-m) !important;
   }
   .action-buttons .btn-done,

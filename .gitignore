@@ -4,3 +4,6 @@ dist
 ios/.gradle
 ios/Pods
 *.xcworkspace/xcuserdata
+.env.local
+.env.*.local
+durak/firebase-config.js

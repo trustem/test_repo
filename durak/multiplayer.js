@@ -3,14 +3,9 @@
 //  БАРДАК — multiplayer.js  (Firebase Firestore host-based)
 // ═══════════════════════════════════════════════════════════════
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDFxACacUJwkwwzQYbgcp3pJmWu4itHimI",
-  authDomain: "bardak-913b6.firebaseapp.com",
-  projectId: "bardak-913b6",
-  storageBucket: "bardak-913b6.firebasestorage.app",
-  messagingSenderId: "1085944011493",
-  appId: "1:1085944011493:web:54d75962e1bd935d13cb80"
-};
+// Firebase config is loaded from durak/firebase-config.js (gitignored).
+// See durak/firebase-config.example.js for the template.
+const firebaseConfig = (typeof window !== 'undefined' && window.FIREBASE_CONFIG) || {};
 
 // Initialize Firebase (compat SDK)
 firebase.initializeApp(firebaseConfig);

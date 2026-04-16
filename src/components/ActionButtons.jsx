@@ -10,15 +10,6 @@ export default function ActionButtons({ G, UI, engine, humanPlayerIdx, undoState
 
   const buttons = [];
 
-  // Undo button
-  if (undoState) {
-    buttons.push(
-      <button key="undo" className="action-btn btn-pass btn-undo" onClick={onUndo}>
-        Отменить
-      </button>
-    );
-  }
-
   // Debug: allow bot step
   if (debugMode && engine.getPendingBotAction() && !isHuman) {
     buttons.push(
@@ -36,32 +27,8 @@ export default function ActionButtons({ G, UI, engine, humanPlayerIdx, undoState
     const canAtk = selectedCards.length > 0 && engine.canAttackWith(selectedCards);
 
     if (G.tablePairs.length === 0) {
-      buttons.push(
-        <button
-          key="attack"
-          className="action-btn btn-attack"
-          disabled={!canAtk}
-          onClick={() => {
-            if (canAtk) engine.doAttack(hi, selectedCards);
-          }}
-        >
-          Атаковать
-        </button>
-      );
+      // Attack via drag-and-drop; no button needed
     } else if (engine.allBeaten() || G.defenderTaking) {
-      const canThrow = canAtk && selectedCards.length > 0;
-      buttons.push(
-        <button
-          key="throw"
-          className="action-btn btn-attack"
-          disabled={!canThrow}
-          onClick={() => {
-            if (canThrow) engine.doThrow(hi, selectedCards[0]);
-          }}
-        >
-          Подкинуть
-        </button>
-      );
       buttons.push(
         <button
           key="done"
@@ -75,21 +42,6 @@ export default function ActionButtons({ G, UI, engine, humanPlayerIdx, undoState
   }
 
   if (G.phase === 'attack' && G.attackDone && G.rightNeighborThrowing && engine.rightNeighborOfDefender() === hi) {
-    const selectedCards = UI.selectedCards.map(id => p.hand.find(c => c.id === id)).filter(Boolean);
-    const canThrow = selectedCards.length === 1 &&
-      engine.nominalOnTable(cardNominal(selectedCards[0])) &&
-      G.tablePairs.length < engine.getAttackLimit();
-
-    buttons.push(
-      <button
-        key="rn-throw"
-        className="action-btn btn-attack"
-        disabled={!canThrow}
-        onClick={() => { if (canThrow) engine.doThrow(hi, selectedCards[0]); }}
-      >
-        Подкинуть
-      </button>
-    );
     buttons.push(
       <button key="rn-pass" className="action-btn btn-pass" onClick={() => engine.doRightNeighborPass(hi)}>
         Пас
@@ -98,20 +50,8 @@ export default function ActionButtons({ G, UI, engine, humanPlayerIdx, undoState
   }
 
   // Transfer-throw phase: transferrer can throw same-nominal cards before new defender acts
+  // (drag-and-drop handles the actual throw; only the Пас button is needed here)
   if (G.transferThrowPhase && G.transferThrowQueue.length > 0 && G.transferThrowQueue[0] === hi) {
-    const nom = G.transferThrowNominal;
-    const throwable = nom ? p.hand.filter(c => cardNominal(c) === nom) : [];
-    throwable.forEach((tc, i) => {
-      buttons.push(
-        <button
-          key={`ttrow-${i}`}
-          className="action-btn btn-attack"
-          onClick={() => engine.doTransferThrow(hi, tc)}
-        >
-          Подкинуть {cardStr(tc)}
-        </button>
-      );
-    });
     buttons.push(
       <button key="ttpass" className="action-btn btn-pass" onClick={() => engine.doTransferThrowPass(hi)}>
         Пас
@@ -144,21 +84,8 @@ export default function ActionButtons({ G, UI, engine, humanPlayerIdx, undoState
     );
   }
 
-  // Nakidyvanie phase 1: give to hand
+  // Nakidyvanie phase 1: give to hand (only Пас button — give via drag-and-drop)
   if (G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length > 0 && G.nakiGiveToHandPending[0] === hi) {
-    const tableNoms = engine.getTableNominals();
-    const giveMatches = p.hand.filter(c => tableNoms.has(cardNominal(c)));
-    const limit = G.nakiGiveToHandLimit || 0;
-    if (limit > 0 && giveMatches.length > 0) {
-      const selected = giveMatches.filter(c => UI.selectedCards.includes(c.id));
-      const toGive = selected.length > 0 ? selected : giveMatches.slice(0, limit);
-      const label = selected.length > 0 ? `Дать в руку (${selected.length})` : `Дать все в руку (${Math.min(giveMatches.length, limit)})`;
-      buttons.push(
-        <button key="give" className="action-btn btn-transfer" onClick={() => engine.doNakiGiveToHand(hi, toGive)}>
-          {label}
-        </button>
-      );
-    }
     buttons.push(
       <button key="give-pass" className="action-btn btn-pass" onClick={() => engine.doNakiGiveToHandPass(hi)}>
         Пас
@@ -182,28 +109,14 @@ export default function ActionButtons({ G, UI, engine, humanPlayerIdx, undoState
       });
     } else {
       const matches = p.hand.filter(c => cardNominal(c) === scoreNom);
-      const canThrowMultiple = engine.isUniqueLowestRankPlayer(defIdx);
       if (matches.length > 0) {
-        if (canThrowMultiple) {
-          const selected = matches.filter(c => UI.selectedCards.includes(c.id));
+        matches.forEach((mc, i) => {
           buttons.push(
-            <button
-              key="naki-multi"
-              className="action-btn btn-throw"
-              onClick={() => engine.doNakiThrowMultiple(hi, selected.length > 0 ? selected : matches)}
-            >
-              {selected.length > 0 ? `Накинуть (${selected.length})` : `Накинуть все (${matches.length})`}
+            <button key={`naki-${i}`} className="action-btn btn-throw" onClick={() => engine.doNakiThrow(hi, mc)}>
+              Накинуть {cardStr(mc)}
             </button>
           );
-        } else {
-          matches.forEach((mc, i) => {
-            buttons.push(
-              <button key={`naki-${i}`} className="action-btn btn-throw" onClick={() => engine.doNakiThrow(hi, mc)}>
-                Накинуть {cardStr(mc)}
-              </button>
-            );
-          });
-        }
+        });
       }
     }
     buttons.push(
