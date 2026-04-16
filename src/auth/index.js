@@ -65,8 +65,14 @@ export async function initAuth() {
     const app = ensureApp();
     const auth = getAuth(app);
 
-    // Handle redirect result after mobile Google sign-in
-    const redirectResult = await getRedirectResult(auth).catch(() => null);
+    // Handle redirect result after mobile Google sign-in.
+    // On Capacitor native, getRedirectResult can hang indefinitely — skip it.
+    const redirectResult = isCapacitorNative()
+      ? null
+      : await Promise.race([
+          getRedirectResult(auth).catch(() => null),
+          new Promise(resolve => setTimeout(() => resolve(null), 5000)),
+        ]);
     if (redirectResult?.user) {
       const user = redirectResult.user;
       const firebaseUid = user.uid;
@@ -309,9 +315,14 @@ function compressImage(file, size = 256, quality = 0.85) {
 
 // ─── Google Auth ───────────────────────────────────────────────
 
-// Mobile browsers block popups — use redirect instead
-function isMobile() {
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+// Capacitor native platform (iOS/Android app, not mobile browser)
+function isCapacitorNative() {
+  return !!(window.Capacitor?.isNativePlatform?.());
+}
+
+// Mobile browsers block popups — use redirect instead (but NOT Capacitor, which needs popup)
+function isMobileBrowser() {
+  return !isCapacitorNative() && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
 // Returns true if current user is linked to Google
@@ -337,8 +348,13 @@ export async function linkGoogleAccount() {
   const auth     = getAuth(app);
   const provider = new GoogleAuthProvider();
 
-  // On mobile, use redirect flow (popups are blocked by Safari/Android browsers)
-  if (isMobile()) {
+  // Capacitor native: redirect flow navigates WKWebView away with no way back
+  if (isCapacitorNative()) {
+    throw Object.assign(new Error('Google-вход доступен только в веб-версии приложения'), { code: 'auth/capacitor-unsupported' });
+  }
+
+  // Mobile browser: popups are blocked — use redirect flow instead
+  if (isMobileBrowser()) {
     if (auth.currentUser) {
       await linkWithRedirect(auth.currentUser, provider);
     } else {

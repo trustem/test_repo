@@ -1594,6 +1594,18 @@ html, body, #root {
 .room-join-btn:hover   { filter: brightness(1.12); transform: translateY(-1px); }
 .room-join-btn:disabled { background: rgba(0,0,0,.4); color: var(--text-muted); cursor: not-allowed; filter: none; transform: none; box-shadow: none; }
 
+.lobby-error-banner {
+  background: rgba(180, 40, 40, 0.85);
+  color: #fff;
+  border-radius: var(--r);
+  padding: 10px 14px;
+  font-size: .85rem;
+  margin-top: 10px;
+  text-align: center;
+  cursor: pointer;
+  border: 1px solid rgba(255,100,100,.4);
+}
+
 .lobby-create-btn {
   background: linear-gradient(135deg, #2471a3, var(--blue));
   color: #fff; margin-top: 0;

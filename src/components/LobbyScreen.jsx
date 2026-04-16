@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { linkGoogleAccount, isLinkedToGoogle, getGoogleEmail } from '../auth/index.js';
 
-export default function LobbyScreen({ rooms, userProfile = {}, onSolo, onCreateRoom, onJoinRoom, onRules, onProfile, onLeaderboard }) {
+export default function LobbyScreen({ rooms, userProfile = {}, error, onErrorDismiss, onSolo, onCreateRoom, onJoinRoom, onRules, onProfile, onLeaderboard }) {
   const [name, setName] = useState(() => userProfile.name || localStorage.getItem('bardak_player_name') || '');
 
   // Sync name when profile changes externally (e.g. after profile save)
@@ -28,11 +28,16 @@ export default function LobbyScreen({ rooms, userProfile = {}, onSolo, onCreateR
   const googleLinked = isLinkedToGoogle();
   const googleEmail = googleLinked ? getGoogleEmail() : null;
 
+  const [googleError, setGoogleError] = useState(null);
+
   const handleGoogleLink = async () => {
+    setGoogleError(null);
     try {
       await linkGoogleAccount();
     } catch (e) {
-      if (e.code !== 'auth/popup-closed-by-user') alert(e.message);
+      if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+        setGoogleError(e.message);
+      }
     }
   };
 
@@ -117,6 +122,12 @@ export default function LobbyScreen({ rooms, userProfile = {}, onSolo, onCreateR
             }
           </div>
         </div>
+
+        {(error || googleError) && (
+          <div className="lobby-error-banner" onClick={onErrorDismiss}>
+            {error || googleError}
+          </div>
+        )}
 
         <button className="start-button lobby-create-btn" onClick={handleCreate}>
           + Создать игру

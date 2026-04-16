@@ -56,6 +56,7 @@ export default function App() {
   const [logEntries, setLogEntries] = useState([]);
   const [mpState, setMpState]       = useState({ enabled: false, isHost: false, seatIndex: null, roomCode: null });
   const [lobbyRooms, setLobbyRooms] = useState([]);
+  const [lobbyError, setLobbyError] = useState(null);
   const [waitingData, setWaitingData]   = useState(null);
   const [gameOverData, setGameOverData] = useState(null);
 
@@ -189,23 +190,25 @@ export default function App() {
   }, []);
 
   const handleCreateRoom = useCallback(async (hostName, maxPlayers) => {
+    setLobbyError(null);
     try {
       mpRef.current?.stopBrowsing();
       saveUserName(firebaseUidRef.current, hostName);
       await mpRef.current.createRoom(hostName, maxPlayers);
       setMpState(mpRef.current.getState());
       setScreen('waiting');
-    } catch (e) { alert(e.message); }
+    } catch (e) { setLobbyError(e.message); }
   }, []);
 
   const handleJoinRoom = useCallback(async (code, playerName) => {
+    setLobbyError(null);
     try {
       mpRef.current?.stopBrowsing();
       saveUserName(firebaseUidRef.current, playerName);
       await mpRef.current.joinRoom(code, playerName);
       setMpState(mpRef.current.getState());
       setScreen('waiting');
-    } catch (e) { alert(e.message); }
+    } catch (e) { setLobbyError(e.message); }
   }, []);
 
   const handleReorderPlayers = useCallback(async (newOrder) => {
@@ -259,6 +262,8 @@ export default function App() {
         <LobbyScreen
           rooms={lobbyRooms}
           userProfile={userProfile}
+          error={lobbyError}
+          onErrorDismiss={() => setLobbyError(null)}
           onSolo={goSetup}
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
