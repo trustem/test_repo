@@ -4,6 +4,7 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
+  initializeFirestore,
   getFirestore,
   doc,
   setDoc,
@@ -30,7 +31,17 @@ let db;
 function getDb() {
   if (!db) {
     firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
-    db = getFirestore(firebaseApp);
+    // experimentalAutoDetectLongPolling fixes Firestore hanging in iOS WKWebView
+    // (Capacitor): gRPC-web streaming doesn't work there, long-polling does.
+    try {
+      db = initializeFirestore(firebaseApp, {
+        experimentalAutoDetectLongPolling: true,
+      });
+    } catch {
+      // initializeFirestore throws if Firestore was already initialized
+      // (e.g. by auth module) — fall back to the existing instance
+      db = getFirestore(firebaseApp);
+    }
   }
   return db;
 }
