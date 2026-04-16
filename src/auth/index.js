@@ -4,7 +4,7 @@
 
 import { getApps, initializeApp, getApp } from 'firebase/app';
 import {
-  getAuth, signInAnonymously,
+  getAuth, initializeAuth, browserLocalPersistence, signInAnonymously,
   GoogleAuthProvider, linkWithPopup, signInWithPopup,
   linkWithRedirect, signInWithRedirect, getRedirectResult,
 } from 'firebase/auth';
@@ -58,12 +58,22 @@ function ensureApp() {
   return getApp();
 }
 
+// Returns Auth instance, using localStorage persistence (reliable in WKWebView/Capacitor).
+// IndexedDB (Firebase's default) can hang indefinitely in iOS WKWebView.
+function ensureAuth(app) {
+  try {
+    return initializeAuth(app, { persistence: browserLocalPersistence });
+  } catch {
+    return getAuth(app);
+  }
+}
+
 // ─── Main: init auth ──────────────────────────────────────────
 export async function initAuth() {
   const localUid = getOrCreateLocalUid();
   try {
     const app = ensureApp();
-    const auth = getAuth(app);
+    const auth = ensureAuth(app);
 
     // Handle redirect result after mobile Google sign-in.
     // On Capacitor native, getRedirectResult can hang indefinitely — skip it.
@@ -328,7 +338,7 @@ function isMobileBrowser() {
 // Returns true if current user is linked to Google
 export function isLinkedToGoogle() {
   try {
-    const auth = getAuth(ensureApp());
+    const auth = ensureAuth(ensureApp());
     return auth.currentUser?.providerData?.some(p => p.providerId === 'google.com') ?? false;
   } catch { return false; }
 }
@@ -336,7 +346,7 @@ export function isLinkedToGoogle() {
 // Returns Google email if linked, null otherwise
 export function getGoogleEmail() {
   try {
-    const auth = getAuth(ensureApp());
+    const auth = ensureAuth(ensureApp());
     return auth.currentUser?.providerData?.find(p => p.providerId === 'google.com')?.email ?? null;
   } catch { return null; }
 }
@@ -345,7 +355,7 @@ export function getGoogleEmail() {
 // Returns { firebaseUid, name, photoURL }
 export async function linkGoogleAccount() {
   const app      = ensureApp();
-  const auth     = getAuth(app);
+  const auth     = ensureAuth(app);
   const provider = new GoogleAuthProvider();
 
   // Mobile browser (not Capacitor): popups are blocked — use redirect flow instead

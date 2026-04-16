@@ -35,7 +35,7 @@ function getDb() {
     // (Capacitor): gRPC-web streaming doesn't work there, long-polling does.
     try {
       db = initializeFirestore(firebaseApp, {
-        experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
       });
     } catch {
       // initializeFirestore throws if Firestore was already initialized
