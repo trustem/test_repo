@@ -8,8 +8,17 @@
 const firebaseConfig = (typeof window !== 'undefined' && window.FIREBASE_CONFIG) || {};
 
 // Initialize Firebase (compat SDK)
-firebase.initializeApp(firebaseConfig);
-var db = firebase.firestore();
+// Wrapped in try/catch so script works even when Firebase SDK fails to load
+// (e.g. in Playwright file:// tests or offline environments)
+var db = null;
+try {
+  if (typeof firebase !== 'undefined') {
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  }
+} catch (e) {
+  console.warn('[multiplayer] Firebase init failed, multiplayer disabled:', e.message);
+}
 
 // ─── MULTIPLAYER STATE ────────────────────────────────────────
 var mp = {
@@ -510,6 +519,7 @@ var mpRoomsUnsubscribe = null;
 
 function mpStartBrowsing() {
   if (mpRoomsUnsubscribe) return; // already listening
+  if (!db) return; // Firebase not available
 
   mpRoomsUnsubscribe = db.collection('rooms')
     .where('status', '==', 'lobby')

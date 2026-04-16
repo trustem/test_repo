@@ -3,481 +3,673 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Бардак — Макет</title>
+<title>Бардак — Макет v2 (зоны)</title>
 <style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    background:#1a1a2e; display:flex; flex-direction:column; align-items:center;
-    min-height:100vh; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; padding-bottom:20px;
-  }
-  h1 { color:#aaa; font-size:11px; letter-spacing:2px; text-transform:uppercase; padding:12px 0 8px; }
-  .controls { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; justify-content:center; }
-  .controls button { background:#2a2a4a; border:1px solid #444; color:#aaa; padding:5px 12px; border-radius:20px; font-size:12px; cursor:pointer; transition:all .2s; }
-  .controls button.active { background:#4a9eff; border-color:#4a9eff; color:#fff; }
-  .controls label { color:#aaa; font-size:12px; display:flex; align-items:center; gap:5px; cursor:pointer; }
-  .controls select { background:#2a2a4a; border:1px solid #444; color:#aaa; padding:5px 8px; border-radius:20px; font-size:12px; cursor:pointer; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#1a1a2e; display:flex; flex-direction:column; align-items:center;
+  min-height:100vh; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  padding:12px 0 40px;
+}
+h1 { color:#888; font-size:10px; letter-spacing:2px; text-transform:uppercase; padding-bottom:10px; }
 
-  /* Purple — цвет потайной карты */
-  :root { --secret-bg: linear-gradient(145deg,#4a1480,#7c2fd4); }
+.controls { display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap; justify-content:center; }
+.controls button {
+  background:#2a2a4a; border:1px solid #444; color:#aaa;
+  padding:4px 11px; border-radius:16px; font-size:11px; cursor:pointer;
+}
+.controls button.active { background:#4a9eff; border-color:#4a9eff; color:#fff; }
+.controls select {
+  background:#2a2a4a; border:1px solid #444; color:#aaa;
+  padding:4px 8px; border-radius:16px; font-size:11px; cursor:pointer;
+}
+.btn-zones { background:#7b2fbe !important; border-color:#7b2fbe !important; color:#fff !important; }
+.btn-zones.on { background:#9b59b6 !important; border-color:#e8b4f8 !important; box-shadow:0 0 10px rgba(155,89,182,.5); }
 
-  .phone {
-    width:390px; height:844px;
-    background-image:radial-gradient(ellipse at 50% 50%,#4a9a62 0%,#2d6040 60%,#1e4a30 100%);
-    border-radius:44px; overflow:hidden; position:relative;
-    box-shadow:0 0 0 8px #111,0 0 0 10px #333,0 40px 80px rgba(0,0,0,.8); flex-shrink:0;
-  }
-  .notch { position:absolute; top:0; left:50%; transform:translateX(-50%); width:120px; height:34px; background:#111; border-radius:0 0 20px 20px; z-index:100; }
+/* ── ZONE CONSTANTS ───────────────────────────────────────────
+   Phone: 390 × 844 px
+   TOP_BAR   : y=0..44    h=44
+   TOP_OPPS  : y=44..174  h=130   full width, up to 2 bots
+   MIDDLE    : y=174..458 h=284   3 columns:
+                 DECK  x=0..84    w=84
+                 TABLE x=84..294  w=210
+                 SIDE  x=294..390 w=96   up to 3 bots
+   ACTION    : y=458..508 h=50    Взять / Бито + Бита
+   THROWN    : y=508..558 h=50    накинутые мне (скрыта если пусто)
+   BADGE     : y=558..598 h=40    «Вы» + роль
+   HAND      : y=598..794 h=196   рука
+   SAFE      : y=794..844 h=50    safe area
+   ──────────────────────────────────────────────────────────── */
+:root {
+  --secret-bg: linear-gradient(135deg,#4a1480 0%,#7c2fd4 100%);
+  --phone-bg : radial-gradient(ellipse at 50% 40%,#3e7055 0%,#255040 55%,#142e28 100%);
+}
 
-  /* ── TABLE — 3 колонки, левее чтобы не лезть на правых игроков ── */
-  /* Колода занимает до x≈82. Правые игроки начинаются с x≈295 (390-8-87).
-     Доступно: 82..295 = 213px. 3 пары × 62px + 2×6px gap = 198px — влезает. */
-  .table-zone {
-    position:absolute;
-    left:82px; top:168px;
-    width:198px; /* 3×62 + 2×6 */
-    display:grid; grid-template-columns: repeat(3, 62px); gap:6px;
-    z-index:10;
-  }
-  .table-pair { position:relative; width:62px; height:94px; flex-shrink:0; }
-  .table-card { position:absolute; top:0; left:0; width:58px; height:82px; border-radius:7px; background:#fefefe; border:1px solid rgba(0,0,0,.12); box-shadow:0 4px 12px rgba(0,0,0,.5); display:flex; flex-direction:column; justify-content:space-between; padding:3px 4px; font-size:11px; font-weight:900; color:#111; }
-  .table-card.red { color:#c0392b; }
-  .table-card.defense { top:14px; left:5px; transform:rotate(11deg); border:2px solid #27ae60; z-index:2; }
-  .suit-center { text-align:center; font-size:17px; line-height:1; }
+/* ── PHONE FRAME ── */
+.phone {
+  width:390px; height:844px;
+  background-image:var(--phone-bg);
+  border-radius:44px; overflow:hidden; position:relative; flex-shrink:0;
+  box-shadow:0 0 0 8px #111,0 0 0 10px #333,0 40px 80px rgba(0,0,0,.8);
+}
+.notch {
+  position:absolute; top:0; left:50%; transform:translateX(-50%);
+  width:120px; height:34px; background:#111; border-radius:0 0 20px 20px; z-index:200;
+}
 
-  .attack-label { position:absolute; left:82px; width:198px; top:150px; text-align:center; z-index:11; }
-  .attack-label span { font-size:10px; font-weight:700; color:#f1c40f; background:rgba(0,0,0,.45); padding:2px 10px; border-radius:10px; border:1px solid rgba(241,196,15,.3); white-space:nowrap; }
+/* ── ZONE OVERLAYS (debug) ── */
+.zones-wrap { display:none; }
+.phone.zones-on .zones-wrap { display:block; }
+.zone-box {
+  position:absolute; pointer-events:none; z-index:300;
+  border:1.5px dashed; font-size:9px; font-weight:700;
+  letter-spacing:.4px; padding:2px 4px; text-transform:uppercase;
+}
+.zb.top-bar { top:0;    left:0; right:0;  height:44px;  border-color:rgba(255,255,80,.7);  color:rgba(255,255,80,.9);  background:rgba(255,255,80,.07); }
+.zb.top-bots{ top:44px; left:0; right:0;  height:130px; border-color:rgba(80,200,255,.7);  color:rgba(80,200,255,.9);  background:rgba(80,200,255,.07); }
+.zb.deck    { top:174px;left:0; width:84px; height:284px; border-color:rgba(255,140,40,.7);  color:rgba(255,140,40,.9);  background:rgba(255,140,40,.07); }
+.zb.table   { top:174px;left:84px;width:210px;height:284px;border-color:rgba(80,220,80,.7);  color:rgba(80,220,80,.9);   background:rgba(80,220,80,.07); }
+.zb.side    { top:174px;right:0; width:96px; height:284px; border-color:rgba(255,80,200,.7);  color:rgba(255,80,200,.9);  background:rgba(255,80,200,.07); }
+.zb.action  { top:458px;left:0; right:0;  height:50px;  border-color:rgba(255,180,80,.7);  color:rgba(255,180,80,.9);  background:rgba(255,180,80,.07); }
+.zb.thrown  { top:508px;left:0; right:0;  height:50px;  border-color:rgba(200,80,255,.7);  color:rgba(200,80,255,.9);  background:rgba(200,80,255,.07); }
+.zb.badge   { top:558px;left:0; right:0;  height:40px;  border-color:rgba(80,255,180,.7);  color:rgba(80,255,180,.9);  background:rgba(80,255,180,.07); }
+.zb.hand    { top:598px;left:0; right:0;  height:196px; border-color:rgba(255,255,255,.4);  color:rgba(255,255,255,.6);  background:rgba(255,255,255,.04); }
+.zb.safe    { top:794px;left:0; right:0;  height:50px;  border-color:rgba(150,150,150,.5);  color:rgba(150,150,150,.7);  background:rgba(150,150,150,.05); }
 
-  /* ── OPPONENTS ── */
-  .opp { position:absolute; display:flex; flex-direction:column; align-items:center; gap:0; z-index:20; }
-  .opp-name { font-size:9px; color:rgba(255,255,255,.9); font-weight:700; text-shadow:0 1px 4px rgba(0,0,0,.9); white-space:nowrap; line-height:1.4; }
-  .opp-count { font-size:8px; color:rgba(255,255,255,.5); font-weight:600; line-height:1.3; }
+/* ── TOP BAR ── */
+.top-bar {
+  position:absolute; top:0; left:0; right:0; height:44px;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 14px 0;
+  background:rgba(0,0,0,.15); z-index:50;
+}
+.top-title { font-size:14px; font-weight:900; color:#f1c40f; letter-spacing:2px; }
+.top-menu  { background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.2); color:#fff; padding:4px 11px; border-radius:12px; font-size:11px; font-weight:700; }
 
-  /* Hand row: fan + secret card side by side */
-  .opp-hand-row { display:flex; align-items:flex-end; gap:5px; margin-top:2px; }
-  .opp-fan { position:relative; }
+/* ── TOP OPPONENTS ZONE ── */
+.top-opps-zone {
+  position:absolute; top:44px; left:0; right:0; height:130px;
+  z-index:20;
+}
 
-  /* Secret card (потайная) — фиолетовая */
-  .secret-card {
-    border-radius:4px;
-    background: var(--secret-bg);
-    border:1px solid rgba(200,160,255,.35);
-    box-shadow:0 2px 6px rgba(0,0,0,.6);
-    flex-shrink:0;
-  }
+/* ── DECK ZONE ── */
+.deck-zone {
+  position:absolute; top:174px; left:0; width:84px; height:284px;
+  z-index:15;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
+}
+.deck-count  { color:#fff; font-size:14px; font-weight:900; text-shadow:0 2px 6px rgba(0,0,0,.8); line-height:1; }
+.deck-stack  { position:relative; width:62px; height:92px; }
+.d-back {
+  position:absolute; width:44px; height:64px; border-radius:6px;
+  background:linear-gradient(145deg,#1a3f7a,#2560bd);
+  border:1.5px solid rgba(255,255,255,.26); box-shadow:2px 2px 6px rgba(0,0,0,.5);
+}
+.d-back:nth-child(1){top:4px;left:0}
+.d-back:nth-child(2){top:2px;left:1.5px}
+.d-back:nth-child(3){top:0;left:3px}
+.trump-card-peek {
+  position:absolute; width:50px; height:34px; border-radius:5px;
+  background:#fefefe; border:1px solid rgba(0,0,0,.15);
+  left:36px; top:16px;
+  display:flex; flex-direction:column; align-items:flex-start; padding:2px 3px;
+  font-size:13px; font-weight:900; color:#c0392b;
+  box-shadow:2px 2px 8px rgba(0,0,0,.5); z-index:1;
+}
+.secret-under {
+  position:absolute; width:50px; height:34px; border-radius:5px;
+  background:var(--secret-bg); border:1px solid rgba(200,160,255,.4);
+  left:28px; top:30px; box-shadow:2px 2px 6px rgba(0,0,0,.6); z-index:0;
+}
+.trump-lbl { font-size:7px; color:rgba(255,255,255,.5); text-transform:uppercase; letter-spacing:1px; }
 
-  /* Накинутые карты */
-  .thrown-fan { position:relative; margin-top:4px; }
-  .thrown-card { position:absolute; top:0; border-radius:3px; background:#fefefe; border:1px solid rgba(0,0,0,.2); box-shadow:1px 1px 4px rgba(0,0,0,.5); display:flex; flex-direction:column; padding:2px; font-size:7px; font-weight:900; line-height:1.15; color:#111; }
-  .thrown-card.red { color:#c0392b; }
+/* ── TABLE ZONE ── */
+.table-zone {
+  position:absolute; top:174px; left:84px; width:210px; height:284px;
+  z-index:10;
+  padding:8px 4px 0;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+}
+.table-label {
+  font-size:9px; font-weight:700; color:#f1c40f;
+  background:rgba(0,0,0,.45); padding:2px 9px; border-radius:8px;
+  border:1px solid rgba(241,196,15,.3); white-space:nowrap; line-height:1.5;
+  align-self:center;
+}
+.table-grid {
+  display:grid; grid-template-columns:repeat(3,62px); gap:7px;
+}
+.table-pair { position:relative; width:62px; height:96px; }
+.tc {
+  position:absolute; top:0; left:0;
+  width:58px; height:82px; border-radius:6px;
+  background:#fefefe; border:1px solid rgba(0,0,0,.12);
+  box-shadow:0 4px 12px rgba(0,0,0,.5);
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:3px 3px; font-size:10px; font-weight:900; color:#111;
+}
+.tc.red   { color:#c0392b; }
+.tc.def   { top:13px; left:4px; transform:rotate(11deg); border:2px solid #27ae60; z-index:2; }
+.tc.xfer  { box-shadow:0 4px 12px rgba(0,0,0,.5),0 0 0 2px #9b59b6,0 0 14px rgba(155,89,182,.4); }
+.tc-suit  { text-align:center; font-size:16px; line-height:1; }
+.xfer-slot {
+  position:absolute; top:0; left:0; width:58px; height:82px; border-radius:6px;
+  border:2px dashed rgba(155,89,182,.7); background:rgba(155,89,182,.07);
+  display:flex; align-items:center; justify-content:center;
+  font-size:26px; color:rgba(155,89,182,.7);
+}
 
-  /* ── DECK + TRUMP ── */
-  .deck-zone { position:absolute; left:10px; top:50%; transform:translateY(-50%); z-index:15; display:flex; flex-direction:column; align-items:center; gap:4px; }
-  .deck-count { color:#fff; font-size:15px; font-weight:900; text-shadow:0 2px 6px rgba(0,0,0,.8); }
-  .deck-stack { position:relative; width:76px; height:102px; }
-  .deck-back { position:absolute; width:56px; height:80px; border-radius:6px; background:linear-gradient(145deg,#1e4a90,#2c6dcd); border:1px solid rgba(255,255,255,.25); box-shadow:2px 2px 6px rgba(0,0,0,.5); }
-  .deck-back:nth-child(1){top:4px;left:0} .deck-back:nth-child(2){top:2px;left:1px} .deck-back:nth-child(3){top:0;left:2px}
-  /* Потайная под козырем — фиолетовая, торчит заметно */
-  .secret-under-trump {
-    position:absolute; width:72px; height:50px; border-radius:5px;
-    background: var(--secret-bg);
-    border:1px solid rgba(200,160,255,.4);
-    left:20px; top:36px;  /* торчит на 16px ниже козыря */
-    box-shadow:2px 2px 6px rgba(0,0,0,.6); z-index:-2;
-  }
-  .trump-peek { position:absolute; width:72px; height:50px; border-radius:5px; background:#fefefe; border:1px solid rgba(0,0,0,.15); left:40px; top:18px; display:flex; flex-direction:column; align-items:flex-start; padding:3px 4px; font-size:13px; font-weight:900; color:#c0392b; box-shadow:2px 2px 8px rgba(0,0,0,.5); z-index:-1; }
-  .trump-label { font-size:8px; color:rgba(255,255,255,.55); text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+/* ── SIDE BOTS ZONE ── */
+.side-zone {
+  position:absolute; top:174px; right:0; width:96px; height:284px;
+  z-index:20;
+}
 
-  /* ── БИТА ── */
-  .discard-pile { position:absolute; right:12px; bottom:160px; z-index:12; display:flex; flex-direction:column; align-items:center; gap:3px; }
-  .discard-stack { position:relative; width:48px; height:66px; }
-  .discard-card { position:absolute; width:44px; height:62px; border-radius:5px; border:1px solid rgba(0,0,0,.12); box-shadow:0 2px 8px rgba(0,0,0,.4); }
-  .discard-label { font-size:8px; font-weight:700; color:rgba(255,255,255,.5); text-transform:uppercase; letter-spacing:.5px; }
+/* ── OPPONENT BLOCK ── */
+.opp-block {
+  position:absolute; right:0;
+  display:flex; flex-direction:column; align-items:flex-end; gap:1px;
+  padding-right:5px;
+}
+.opp-name  { font-size:9px; color:rgba(255,255,255,.9); font-weight:700; white-space:nowrap; line-height:1.4; }
+.opp-count { font-size:7px; color:rgba(255,255,255,.5); font-weight:600; }
+.opp-role  { font-size:7px; font-weight:800; padding:1px 5px; border-radius:7px; text-transform:uppercase; letter-spacing:.4px; }
+.opp-role.atk { background:#c0392b; color:#fff; }
+.opp-role.def { background:#27ae60; color:#fff; }
+.opp-hand-row { display:flex; align-items:flex-end; gap:3px; }
+.opp-fan { position:relative; flex-shrink:0; }
+.fan-c {
+  position:absolute;
+  border-radius:3px;
+  background:linear-gradient(145deg,#1a3f7a,#2560bd);
+  border:1px solid rgba(255,255,255,.22);
+  box-shadow:0 2px 5px rgba(0,0,0,.5);
+}
+.sec-card {
+  border-radius:3px; background:var(--secret-bg);
+  border:1px solid rgba(200,160,255,.35); box-shadow:0 2px 6px rgba(0,0,0,.6); flex-shrink:0;
+}
+.opp-thrown-row { position:relative; margin-top:2px; }
+.oth-c {
+  position:absolute; top:0; border-radius:3px;
+  background:#fefefe; border:1px solid rgba(0,0,0,.2); box-shadow:1px 1px 4px rgba(0,0,0,.5);
+  display:flex; flex-direction:column; padding:1px 2px;
+  font-size:7px; font-weight:900; line-height:1.2; color:#111;
+}
+.oth-c.red { color:#c0392b; }
 
-  /* ── TRANSFER SLOT ── */
-  .transfer-slot {
-    position:absolute; top:0; left:0; width:58px; height:82px;
-    border-radius:7px;
-    border:2px dashed rgba(155,89,182,.75);
-    background:rgba(155,89,182,.08);
-    display:flex; align-items:center; justify-content:center;
-  }
-  .transfer-slot-icon {
-    font-size:30px; line-height:1;
-    color:rgba(155,89,182,.8);
-  }
+/* Top opponent blocks are positioned differently */
+.top-opp {
+  position:absolute; top:6px;
+  display:flex; flex-direction:column; align-items:center; gap:1px;
+  transform:translateX(-50%);
+}
+.top-opp .opp-hand-row { flex-direction:row; }
 
-  /* ── ACTION BUTTONS ── */
-  .action-btns { position:absolute; left:0; right:0; bottom:196px; display:flex; justify-content:center; align-items:center; gap:16px; z-index:30; }
-  .btn-take { width:68px; height:96px; background:#e74c3c; border:none; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:900; color:#fff; box-shadow:0 6px 20px rgba(0,0,0,.5),0 0 0 2px rgba(231,76,60,.4); cursor:pointer; }
-  .btn-done { padding:12px 24px; border-radius:24px; font-size:14px; font-weight:800; letter-spacing:1px; border:none; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,.5); background:#27ae60; color:#fff; }
+/* ── ACTION ZONE ── */
+.action-zone {
+  position:absolute; top:458px; left:0; right:0; height:50px;
+  display:flex; align-items:center; justify-content:center;
+  gap:8px; padding:0 8px; z-index:30;
+}
+.btn-take {
+  width:56px; height:40px; background:#e74c3c; border:none; border-radius:10px;
+  font-size:11px; font-weight:900; color:#fff;
+  box-shadow:0 4px 12px rgba(0,0,0,.5); cursor:pointer; flex-shrink:0;
+}
+.btn-main {
+  padding:9px 18px; border-radius:18px; font-size:12px; font-weight:800; letter-spacing:.5px;
+  border:none; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,.4);
+  background:#27ae60; color:#fff; flex-shrink:0;
+}
+.btn-main.take-mode { background:#e74c3c; }
+.bita-badge {
+  margin-left:auto;
+  display:flex; flex-direction:column; align-items:center; gap:1px; padding-right:4px;
+}
+.bita-mini-stack { position:relative; width:32px; height:42px; }
+.bita-mini {
+  position:absolute; width:28px; height:38px; border-radius:4px;
+  background:linear-gradient(145deg,#1a4f20,#2e7d32); border:1px solid rgba(0,0,0,.1);
+}
+.bita-cnt { font-size:7px; font-weight:700; color:rgba(255,255,255,.5); text-transform:uppercase; }
 
-  /* ── PLAYER HAND ── */
-  .hand-zone { position:absolute; bottom:0; left:0; right:0; height:200px; z-index:25; overflow:hidden; }
-  .hand-fan { position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:100%; height:165px; }
-  .hand-card { position:absolute; width:72px; height:104px; border-radius:8px; background:#fefefe; border:1px solid rgba(0,0,0,.12); box-shadow:0 6px 18px rgba(0,0,0,.5); display:flex; flex-direction:column; justify-content:space-between; padding:5px; font-size:15px; font-weight:900; transform-origin:bottom center; transition:transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s; cursor:pointer; user-select:none; bottom:0; }
-  .hand-card.red { color:#c0392b; }
-  .hand-card.lifted { box-shadow:0 20px 40px rgba(0,0,0,.7)!important; z-index:60!important; }
-  .hand-card .sc { text-align:center; font-size:26px; line-height:1; }
-  .hand-card .cb { transform:rotate(180deg); line-height:1.1; }
+/* ── THROWN-TO-ME ZONE ── */
+.thrown-zone {
+  position:absolute; top:508px; left:0; right:0; height:50px;
+  z-index:25;
+  display:flex; align-items:center;
+  padding:0 10px; gap:8px;
+}
+.thrown-zone.empty { opacity:0; pointer-events:none; } /* reserve space, hide visually */
+.thrown-lbl { font-size:9px; font-weight:700; color:#f1c40f; text-shadow:0 1px 3px rgba(0,0,0,.8); white-space:nowrap; flex-shrink:0; }
+.thrown-cards-row { position:relative; flex-shrink:0; }
+.thr-c {
+  position:absolute; top:0; border-radius:4px;
+  background:#fefefe; border:1px solid rgba(0,0,0,.2); box-shadow:1px 2px 5px rgba(0,0,0,.5);
+  display:flex; flex-direction:column; padding:2px 3px;
+  font-size:9px; font-weight:900; line-height:1.2; color:#111;
+}
+.thr-c.red { color:#c0392b; }
 
-  /* Потайная игрока — стоит отдельно справа от руки */
-  .my-secret {
-    position:absolute;
-    width:52px; height:76px;
-    border-radius:8px;
-    background: var(--secret-bg);
-    border:1px solid rgba(200,160,255,.4);
-    box-shadow:0 6px 16px rgba(0,0,0,.6);
-    bottom:0;
-    right:12px;
-    z-index:26;
-  }
+/* ── HUMAN BADGE ZONE ── */
+.badge-zone {
+  position:absolute; top:558px; left:0; right:0; height:40px;
+  display:flex; align-items:center; justify-content:center;
+  gap:8px; z-index:25;
+}
+.my-plate {
+  background:rgba(30,130,70,.9); border:1px solid rgba(255,255,255,.18);
+  border-radius:12px; padding:4px 13px;
+  display:flex; flex-direction:column; align-items:center; line-height:1.3;
+}
+.my-plate.atk { background:rgba(180,30,30,.9); }
+.my-plate.def { background:rgba(30,100,160,.9); }
+.my-name  { font-size:11px; font-weight:900; color:#fff; }
+.my-cnt   { font-size:8px; color:rgba(255,255,255,.7); }
+.role-pill {
+  font-size:10px; font-weight:800; padding:4px 12px; border-radius:12px;
+  text-transform:uppercase; letter-spacing:.5px; border:none;
+}
+.role-pill.atk { background:#e74c3c; color:#fff; }
+.role-pill.def { background:#2980b9; color:#fff; }
 
-  /* ── Browser ── */
-  .browser-hint { width:390px; height:44px; background:#1a1a1a; display:flex; align-items:center; justify-content:center; border-radius:0 0 44px 44px; border-top:1px solid #2a2a2a; }
-  .browser-bar { width:120px; height:4px; background:#3a3a3a; border-radius:2px; }
+/* ── HAND ZONE ── */
+.hand-zone {
+  position:absolute; top:598px; left:0; right:0; height:196px;
+  z-index:25; overflow:hidden;
+}
+.hand-fan { position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:100%; height:168px; }
+.hand-card {
+  position:absolute; width:68px; height:96px; border-radius:8px;
+  background:#fefefe; border:1px solid rgba(0,0,0,.12);
+  box-shadow:0 6px 18px rgba(0,0,0,.5);
+  display:flex; flex-direction:column; justify-content:space-between;
+  padding:4px; font-size:13px; font-weight:900;
+  transform-origin:bottom center; bottom:0;
+  transition:transform .18s cubic-bezier(.34,1.56,.64,1); cursor:pointer; user-select:none;
+}
+.hand-card.red { color:#c0392b; }
+.hand-card.lifted { box-shadow:0 20px 40px rgba(0,0,0,.7) !important; z-index:60 !important; }
+.hand-card .hsc { text-align:center; font-size:22px; line-height:1; }
+/* Player secret card — right edge of hand zone, above home bar */
+.my-secret {
+  position:absolute; right:8px; bottom:55px;
+  width:34px; height:48px; border-radius:6px;
+  background:var(--secret-bg); border:1px solid rgba(200,160,255,.4);
+  box-shadow:0 4px 14px rgba(0,0,0,.6); z-index:26;
+  display:flex; align-items:center; justify-content:center;
+  font-size:7px; color:rgba(200,160,255,.8); font-weight:700; text-align:center; line-height:1.3;
+}
+
+/* ── BOTTOM SAFE AREA ── */
+.safe-bar {
+  position:absolute; bottom:0; left:0; right:0; height:34px;
+  display:flex; align-items:center; justify-content:center;
+}
+.home-indicator { width:100px; height:4px; background:rgba(255,255,255,.25); border-radius:2px; }
 </style>
 </head>
 <body>
-<h1>Бардак — визуальный макет</h1>
+<h1>Бардак — Новый Макет v2 (зоны)</h1>
+
 <div class="controls">
-  <button class="active" onclick="setCount(2)">2 игрока</button>
-  <button onclick="setCount(3)">3 игрока</button>
-  <button onclick="setCount(4)">4 игрока</button>
-  <button onclick="setCount(5)">5 игроков</button>
-  <button onclick="setCount(6)">6 игроков</button>
-  <label><input type="checkbox" id="maxTable" onchange="renderTable()"> 12 карт на столе (6+6)</label>
-  <select onchange="renderTable(this.value)">
+  <button onclick="setCount(2)" class="active" id="btn2">2 игрока</button>
+  <button onclick="setCount(3)" id="btn3">3 игрока</button>
+  <button onclick="setCount(4)" id="btn4">4 игрока</button>
+  <button onclick="setCount(5)" id="btn5">5 игроков</button>
+  <button onclick="setCount(6)" id="btn6">6 игроков</button>
+  <button class="btn-zones" onclick="toggleZones(this)" id="zoneBtn">🗺 Зоны</button>
+  <select id="scenSel" onchange="setScenario(this.value)">
     <option value="attack">Атака</option>
+    <option value="defense">Защита</option>
     <option value="transfer">Перевод</option>
     <option value="thrown_to_me">Накинули мне</option>
   </select>
+  <label style="color:#aaa;font-size:11px;display:flex;align-items:center;gap:4px">
+    <input type="checkbox" id="maxTable" onchange="render()"> 6 пар
+  </label>
 </div>
 
 <div class="phone" id="phone">
   <div class="notch"></div>
-  <div id="opps"></div>
 
-  <!-- DECK + TRUMP -->
+  <!-- Zone overlays -->
+  <div class="zones-wrap">
+    <div class="zone-box zb top-bar">TOP BAR</div>
+    <div class="zone-box zb top-bots">ПРОТИВНИКИ (верх)</div>
+    <div class="zone-box zb deck">КОЛОДА</div>
+    <div class="zone-box zb table">СТОЛ</div>
+    <div class="zone-box zb side">БОТ ПРАВЫЕ</div>
+    <div class="zone-box zb action">КНОПКИ</div>
+    <div class="zone-box zb thrown">НАКИНУТО МНЕ</div>
+    <div class="zone-box zb badge">ВЫ</div>
+    <div class="zone-box zb hand">РУКА</div>
+    <div class="zone-box zb safe">SAFE AREA</div>
+  </div>
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <span class="top-title">БАРДАК</span>
+    <button class="top-menu">☰ Меню</button>
+  </div>
+
+  <!-- Top opponents -->
+  <div class="top-opps-zone" id="topOpps"></div>
+
+  <!-- Deck + Trump -->
   <div class="deck-zone">
-    <div class="deck-count">24</div>
+    <div class="deck-count" id="deckCount">24</div>
     <div class="deck-stack">
-      <div class="deck-back"></div>
-      <div class="deck-back"></div>
-      <div class="deck-back"></div>
-      <div class="secret-under-trump"></div>
-      <div class="trump-peek">♠<br>7</div>
+      <div class="d-back"></div>
+      <div class="d-back"></div>
+      <div class="d-back"></div>
+      <div class="secret-under"></div>
+      <div class="trump-card-peek">♠<span style="font-size:9px">7</span></div>
     </div>
-    <div class="trump-label">Козырь</div>
+    <div class="trump-lbl">Козырь</div>
   </div>
 
-  <!-- БИТА -->
-  <div class="discard-pile">
-    <div class="discard-stack" id="discardStack"></div>
-    <div class="discard-label">Бита: 8</div>
+  <!-- Side bots (right column) -->
+  <div class="side-zone" id="sideBots"></div>
+
+  <!-- Table -->
+  <div class="table-zone">
+    <div class="table-label" id="tableLabel">⚔️ Вы атакуете</div>
+    <div class="table-grid" id="tableGrid"></div>
   </div>
 
-  <div class="attack-label" id="attackLabel"><span>⚔️ Бот атакует вас</span></div>
-  <div class="table-zone" id="tableZone"></div>
-
-  <!-- Накинутые мне карты — под кнопкой Взять, у левой стены -->
-  <div id="thrownToMeWrap" style="display:none; position:absolute; left:8px; bottom:120px; z-index:15; flex-direction:column; align-items:flex-start; gap:3px;">
-    <div style="font-size:9px; font-weight:700; color:#f1c40f; text-shadow:0 1px 3px rgba(0,0,0,.8);">▼ накинуто вам</div>
-    <div id="thrownToMeFan" style="position:relative;"></div>
+  <!-- Action bar -->
+  <div class="action-zone">
+    <button class="btn-take" id="btnTake">Взять</button>
+    <button class="btn-main" id="btnMain">Бито</button>
+    <div class="bita-badge">
+      <div class="bita-mini-stack">
+        <div class="bita-mini" style="top:4px;left:0;transform:rotate(-7deg)"></div>
+        <div class="bita-mini" style="top:2px;left:1.5px;transform:rotate(3deg)"></div>
+        <div class="bita-mini" style="top:0;left:3px"></div>
+      </div>
+      <div class="bita-cnt">Бита: 8</div>
+    </div>
   </div>
 
-  <div class="action-btns" id="actionBtns">
-    <button class="btn-take">Взять</button>
-    <button class="btn-done">Бито</button>
+  <!-- Thrown to me zone -->
+  <div class="thrown-zone empty" id="thrownZone">
+    <span class="thrown-lbl">▼ накинуто вам:</span>
+    <div class="thrown-cards-row" id="thrownRow"></div>
   </div>
 
+  <!-- Human badge -->
+  <div class="badge-zone">
+    <div class="my-plate" id="myPlate">
+      <span class="my-name">Вы</span>
+      <span class="my-cnt">Карт: 5+1</span>
+    </div>
+    <div class="role-pill atk" id="myRole">АТАКА</div>
+  </div>
+
+  <!-- Hand -->
   <div class="hand-zone">
     <div class="hand-fan" id="handFan"></div>
-    <!-- Потайная игрока — справа от руки, рядом но не поверх -->
-    <div class="my-secret"></div>
+    <div class="my-secret">⚠<br>Потай-<br>ная</div>
   </div>
+
+  <!-- Home indicator -->
+  <div class="safe-bar"><div class="home-indicator"></div></div>
 </div>
 
-<div class="browser-hint"><div class="browser-bar"></div></div>
-
 <script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+const BOTS = [
+  { name:'Бот 1', count:5,  thrown:[{r:'6',s:'♠',red:false},{r:'6',s:'♥',red:true}] },
+  { name:'Бот 2', count:8,  thrown:[] },
+  { name:'Бот 3', count:6,  thrown:[{r:'9',s:'♣',red:false},{r:'7',s:'♠',red:false}] },
+  { name:'Бот 4', count:12, thrown:[] },
+  { name:'Бот 5', count:3,  thrown:[{r:'J',s:'♣',red:false}] },
+];
 const MY_CARDS = [
-  {rank:'6',suit:'♣',red:false},{rank:'8',suit:'♠',red:false},{rank:'9',suit:'♠',red:false},
-  {rank:'J',suit:'♠',red:false},{rank:'J',suit:'♥',red:true},{rank:'10',suit:'♦',red:true},{rank:'9',suit:'♥',red:true},
+  {r:'K',s:'♥',red:true},{r:'6',s:'♥',red:true},{r:'J',s:'♦',red:true},
+  {r:'10',s:'♣',red:false},{r:'7',s:'♠',red:false},
 ];
-const OPP_NAMES  = ['Бот','Бот 2','Бот 3','Бот 4','Бот 5'];
-const OPP_COUNTS = [12, 6, 5, 15, 8];
-const THROWN = [
-  [{rank:'6',suit:'♠',red:false},{rank:'6',suit:'♥',red:true}],
-  [{rank:'9',suit:'♣',red:false},{rank:'7',suit:'♠',red:false},{rank:'J',suit:'♦',red:true}],
-  [],
-  [{rank:'J',suit:'♣',red:false},{rank:'J',suit:'♦',red:true},{rank:'J',suit:'♠',red:false},{rank:'J',suit:'♥',red:true}],
-  [{rank:'6',suit:'♦',red:true}],
-];
-// Scenarios
 const SCENARIOS = {
-  attack: {
-    label: '⚔️ Бот атакует вас',
-    pairs: [
-      {a:{rank:'7',suit:'♠',red:false},d:{rank:'Q',suit:'♦',red:true}},
-      {a:{rank:'6',suit:'♥',red:true},d:null},
-      {a:{rank:'7',suit:'♣',red:false},d:null},
-    ],
-    thrownToMe: [],
-    btns: ['Взять','Бито'],
-  },
-  transfer: {
-    label: '🔄 Перевод на следующего',
-    // перевод: атакующая карта одного номинала — защитник кладёт ту же масть
-    pairs: [
-      {a:{rank:'7',suit:'♠',red:false},d:null,transfer:true},
-      {a:{rank:'7',suit:'♥',red:true}, d:null,transfer:true},
-      {slot:'transfer'}, // слот-подсказка: сюда можно положить карту перевода
-    ],
-    thrownToMe: [],
-    btns: ['Взять','Перевести'],
-  },
-  thrown_to_me: {
-    label: '📥 Вам накинули карты',
-    pairs: [
-      {a:{rank:'9',suit:'♠',red:false},d:{rank:'Q',suit:'♦',red:true}},
-      {a:{rank:'9',suit:'♥',red:true}, d:{rank:'K',suit:'♠',red:false}},
-    ],
-    thrownToMe: [
-      {rank:'9',suit:'♣',red:false},
-      {rank:'9',suit:'♦',red:true},
-      {rank:'6',suit:'♠',red:false},
-    ],
-    btns: ['Взять','Бито'],
-  },
+  attack:      { label:'⚔️ Вы атакуете',      mainBtn:'Бито',     role:'atk',
+    pairs:[{a:{r:'7',s:'♠',red:false},d:{r:'Q',s:'♦',red:true}},{a:{r:'6',s:'♥',red:true}},{a:{r:'7',s:'♣',red:false}}],
+    thrown:[] },
+  defense:     { label:'🛡 Вы защищаетесь',   mainBtn:'Взять',    role:'def',
+    pairs:[{a:{r:'9',s:'♠',red:false},d:{r:'Q',s:'♦',red:true}},{a:{r:'J',s:'♥',red:true}},{a:{r:'6',s:'♣',red:false}}],
+    thrown:[] },
+  transfer:    { label:'🔄 Перевод',           mainBtn:'Перевести',role:'def',
+    pairs:[{a:{r:'7',s:'♠',red:false},xfer:true},{a:{r:'7',s:'♥',red:true},xfer:true},{slot:true}],
+    thrown:[] },
+  thrown_to_me:{ label:'📥 Накинули вам',      mainBtn:'Взять',    role:'def',
+    pairs:[{a:{r:'9',s:'♠',red:false},d:{r:'Q',s:'♦',red:true}},{a:{r:'9',s:'♥',red:true},d:{r:'K',s:'♠',red:false}}],
+    thrown:[{r:'9',s:'♣',red:false},{r:'9',s:'♦',red:true},{r:'6',s:'♠',red:false}] },
 };
 const TABLE_MAX = [
-  {a:{rank:'7',suit:'♠',red:false},d:{rank:'Q',suit:'♦',red:true}},
-  {a:{rank:'6',suit:'♥',red:true},d:{rank:'A',suit:'♥',red:true}},
-  {a:{rank:'9',suit:'♣',red:false},d:{rank:'10',suit:'♠',red:false}},
-  {a:{rank:'J',suit:'♦',red:true},d:{rank:'K',suit:'♠',red:false}},
-  {a:{rank:'8',suit:'♠',red:false},d:{rank:'A',suit:'♠',red:false}},
-  {a:{rank:'6',suit:'♦',red:true},d:{rank:'10',suit:'♥',red:true}},
+  {a:{r:'7',s:'♠',red:false},d:{r:'Q',s:'♦',red:true}},{a:{r:'6',s:'♥',red:true},d:{r:'A',s:'♥',red:true}},
+  {a:{r:'9',s:'♣',red:false},d:{r:'10',s:'♠',red:false}},{a:{r:'J',s:'♦',red:true},d:{r:'K',s:'♠',red:false}},
+  {a:{r:'8',s:'♠',red:false},d:{r:'A',s:'♠',red:false}},{a:{r:'6',s:'♦',red:true},d:{r:'10',s:'♥',red:true}},
 ];
-let currentScenario = 'attack';
 
-// ─── Layouts: top + right side (left=deck zone is blocked) ───────────────────
-// Fan width for n=10 cards, OL=8: 8*9+24 = 96px + 5gap + secret(24) = 125px
-// So each block is ~125px. Centered means ±63px around cx.
-// Phone usable for top: x=82..380 = 298px
-// For 3 on top: 298/3 ≈ 99px → too tight with secret. So 6p uses 2 top + 3 right.
-// For 2 on top: spacing = 298/1 = 298, centers at ~160 and ~310 → fine.
+// ── Layout: always 2 top bots + rest on right side ───────────────────────────
+// 2p→1top  3p→2top  4p→2top+1side  5p→2top+2side  6p→2top+3side
 const LAYOUTS = {
-  2: [ {cx:228, cy:8} ],
-  3: [ {cx:175, cy:8}, {side:true, cy:340} ],
-  4: [ {cx:158, cy:8}, {cx:300, cy:8}, {side:true, cy:350} ],
-  5: [ {cx:158, cy:8}, {cx:300, cy:8}, {side:true, cy:230}, {side:true, cy:440} ],
-  6: [ {cx:158, cy:8}, {cx:300, cy:8}, {side:true, cy:200}, {side:true, cy:370}, {side:true, cy:545} ],
+  2: { top:[0],     side:[] },
+  3: { top:[0,1],   side:[] },
+  4: { top:[0,1],   side:[2] },
+  5: { top:[0,1],   side:[2,3] },
+  6: { top:[0,1],   side:[2,3,4] },
 };
 
-// ─── Thrown fan ──────────────────────────────────────────────────────────────
-function buildThrownFan(thrown) {
-  if (!thrown || !thrown.length) return null;
-  const CW=20, CH=30, VIS=10, n=thrown.length;
-  const fan = document.createElement('div');
-  fan.className = 'thrown-fan';
-  fan.style.width  = (VIS*(n-1)+CW) + 'px';
-  fan.style.height = CH + 'px';
-  thrown.forEach((c,i) => {
-    const el = document.createElement('div');
-    el.className = 'thrown-card' + (c.red?' red':'');
-    el.style.cssText = `left:${i*VIS}px;width:${CW}px;height:${CH}px;z-index:${i};`;
-    el.innerHTML = `<span>${c.rank}</span><span>${c.suit}</span>`;
-    fan.appendChild(el);
-  });
-  return fan;
+let count = 2, scenario = 'attack';
+
+// ── Fan builder ───────────────────────────────────────────────────────────────
+function makeFan(n, CW, CH, maxOL, flip) {
+  const OL   = n > 1 ? Math.min(maxOL, Math.floor((flip ? 55 : 65) / Math.max(n-1,1))) : 0;
+  const fanW = OL*(n-1)+CW;
+  const div  = document.createElement('div');
+  div.className = 'opp-fan';
+  div.style.cssText = `width:${fanW}px;height:${CH+8}px;position:relative;flex-shrink:0;`;
+  const MAXROT = 18;
+  for (let i = 0; i < n; i++) {
+    const t  = n > 1 ? i/(n-1) : 0.5;
+    const xO = flip ? (fanW - CW - i*OL) : i*OL;
+    const c  = document.createElement('div');
+    c.className = 'fan-c';
+    c.style.cssText = `width:${CW}px;height:${CH}px;top:${(Math.pow(t-.5,2)*7).toFixed(1)}px;left:${xO}px;z-index:${i};` +
+      `transform-origin:bottom center;transform:rotate(${((t-.5)*MAXROT*2).toFixed(1)}deg);`;
+    div.appendChild(c);
+  }
+  return div;
 }
 
-// ─── Opponent block ───────────────────────────────────────────────────────────
-function buildOpp(pos, name, handCount, thrown) {
-  const isSide = !!pos.side;
+// ── Opponent block builder ─────────────────────────────────────────────────────
+function makeOppBlock(bot, isSide, roleClass) {
+  const n   = Math.min(bot.count, 12);
+  const CW  = isSide ? 20 : 26, CH = isSide ? 30 : 38;
+  const OL  = 8;
+
   const wrap = document.createElement('div');
-  wrap.className = 'opp';
+  wrap.className = isSide ? 'opp-block' : 'top-opp';
 
-  if (isSide) {
-    wrap.style.right     = '8px';
-    wrap.style.top       = pos.cy + 'px';
-    wrap.style.transform = 'translateY(-50%)';
-    wrap.style.alignItems = 'flex-end'; // right-align for side opponents
-  } else {
-    wrap.style.left      = pos.cx + 'px';
-    wrap.style.top       = pos.cy + 'px';
-    wrap.style.transform = 'translateX(-50%)';
+  if (roleClass) {
+    const r = document.createElement('div');
+    r.className = 'opp-role ' + roleClass;
+    r.textContent = roleClass === 'atk' ? 'Атака' : 'Защита';
+    wrap.appendChild(r);
   }
 
-  // Name + count
-  const nm = document.createElement('div'); nm.className='opp-name'; nm.textContent=name; wrap.appendChild(nm);
-  const ct = document.createElement('div'); ct.className='opp-count'; ct.textContent=handCount+' карт'; wrap.appendChild(ct);
+  const nm = document.createElement('div'); nm.className='opp-name'; nm.textContent=bot.name; wrap.appendChild(nm);
+  const ct = document.createElement('div'); ct.className='opp-count'; ct.textContent=bot.count+' карт'; wrap.appendChild(ct);
 
-  // Row: fan + secret side by side
-  const row = document.createElement('div');
-  row.className = 'opp-hand-row';
-
-  // Face-down fan
-  // Для правых ботов (isSide) ограничиваем ширину веера так, чтобы левый край ≥ 280px
-  // (правый край стола). Доступно: 390-8(right)-5(gap)-24(secret)-280 = 73px для веера.
-  // OL*(n-1)+CW ≤ 73 → OL ≤ 49/(n-1). Для n=15 OL=3 → fanW=66px, старт=287px. ✓
-  const n=Math.min(handCount, isSide ? 15 : 10), CW=24, CH=36, MAXROT=20;
-  const OL = (isSide && n > 1) ? Math.min(8, Math.floor(49/(n-1))) : 8;
-  const fanW = OL*(n-1)+CW;
-  const fan = document.createElement('div');
-  fan.className = 'opp-fan';
-  fan.style.width  = fanW + 'px';
-  fan.style.height = (CH+8) + 'px';
-  fan.style.position = 'relative';
-  fan.style.flexShrink = '0';
-
-  for (let i=0;i<n;i++) {
-    const t=n>1?i/(n-1):0.5;
-    const card = document.createElement('div');
-    card.style.cssText = `
-      position:absolute; width:${CW}px; height:${CH}px; border-radius:4px;
-      background:linear-gradient(145deg,#1e4a90,#2c6dcd);
-      border:1px solid rgba(255,255,255,.22); box-shadow:0 2px 5px rgba(0,0,0,.5);
-      transform-origin:bottom center;
-      transform:translateX(${i*OL}px) translateY(${Math.pow(t-.5,2)*8}px) rotate(${(t-.5)*MAXROT*2}deg);
-      z-index:${i}; top:0; left:0;`;
-    fan.appendChild(card);
-  }
-  row.appendChild(fan);
-
-  // Secret card — фиолетовая, стоит рядом справа
-  const secret = document.createElement('div');
-  secret.className = 'secret-card';
-  secret.style.width  = CW + 'px';
-  secret.style.height = CH + 'px';
-  row.appendChild(secret);
-
+  const row = document.createElement('div'); row.className = 'opp-hand-row';
+  row.appendChild(makeFan(n, CW, CH, OL, isSide));
+  const sec = document.createElement('div');
+  sec.className = 'sec-card';
+  sec.style.cssText = `width:${CW}px;height:${CH}px;`;
+  row.appendChild(sec);
   wrap.appendChild(row);
 
-  // Thrown cards
-  const thr = buildThrownFan(thrown);
-  if (thr) wrap.appendChild(thr);
-
+  if (bot.thrown && bot.thrown.length) {
+    const TW=18,TH=26,TV=8,tn=bot.thrown.length;
+    const trow = document.createElement('div');
+    trow.className = 'opp-thrown-row';
+    trow.style.cssText = `width:${TV*(tn-1)+TW}px;height:${TH}px;`;
+    bot.thrown.forEach((c,i)=>{
+      const el = document.createElement('div');
+      el.className = 'oth-c'+(c.red?' red':'');
+      el.style.cssText=`left:${i*TV}px;width:${TW}px;height:${TH}px;z-index:${i};`;
+      el.innerHTML=`<span>${c.r}</span><span>${c.s}</span>`;
+      trow.appendChild(el);
+    });
+    wrap.appendChild(trow);
+  }
   return wrap;
 }
 
-function renderOpponents(count) {
-  const c = document.getElementById('opps');
-  c.innerHTML = '';
-  LAYOUTS[count].forEach((pos,i) => c.appendChild(buildOpp(pos, OPP_NAMES[i], OPP_COUNTS[i], THROWN[i])));
+// ── Render top bots ────────────────────────────────────────────────────────────
+function renderTopBots(indices) {
+  const zone = document.getElementById('topOpps');
+  zone.innerHTML = '';
+  const n = indices.length;
+  if (!n) return;
+  // Spread across full width avoiding notch (x=135..255 at y<34, but we start at y=44 so no issue)
+  indices.forEach((bi, pos) => {
+    const cx = n === 1 ? 195 : (pos === 0 ? 115 : 275);
+    const el = makeOppBlock(BOTS[bi], false, null);
+    el.style.left = cx + 'px';
+    zone.appendChild(el);
+  });
 }
 
-// ─── Table ────────────────────────────────────────────────────────────────────
-function renderTable(scenario) {
-  if (scenario) currentScenario = scenario;
-  const sc = SCENARIOS[currentScenario];
-  const z  = document.getElementById('tableZone');
-  z.innerHTML = '';
+// ── Render side bots ───────────────────────────────────────────────────────────
+function renderSideBots(indices) {
+  const zone = document.getElementById('sideBots');
+  zone.innerHTML = '';
+  const n = indices.length;
+  if (!n) return;
+  const zoneH = 284;
+  const slotH = Math.floor(zoneH / n);
+  indices.forEach((bi, pos) => {
+    const el = makeOppBlock(BOTS[bi], true, null);
+    const midY = pos * slotH + Math.floor(slotH / 2);
+    el.style.top = midY + 'px';
+    el.style.transform = 'translateY(-50%)';
+    zone.appendChild(el);
+  });
+}
+
+// ── Render table ───────────────────────────────────────────────────────────────
+function mkCard(c, isDef, isXfer) {
+  const el = document.createElement('div');
+  el.className = 'tc'+(c.red?' red':'')+(isDef?' def':'')+(isXfer?' xfer':'');
+  el.innerHTML = `<div>${c.r}<br>${c.s}</div><div class="tc-suit">${c.s}</div><div style="transform:rotate(180deg)">${c.r}<br>${c.s}</div>`;
+  return el;
+}
+
+function renderTable() {
+  const sc   = SCENARIOS[scenario];
+  const grid = document.getElementById('tableGrid');
+  const lbl  = document.getElementById('tableLabel');
+  grid.innerHTML = '';
+  lbl.textContent = sc.label;
 
   const pairs = document.getElementById('maxTable').checked ? TABLE_MAX : sc.pairs;
   pairs.forEach(p => {
     const pair = document.createElement('div'); pair.className='table-pair';
-    if (p.slot === 'transfer') {
-      const slot = document.createElement('div'); slot.className='transfer-slot';
-      const icon = document.createElement('div'); icon.className='transfer-slot-icon';
-      icon.textContent='↻';
-      slot.appendChild(icon);
-      pair.appendChild(slot);
+    if (p.slot) {
+      const sl = document.createElement('div'); sl.className='xfer-slot'; sl.textContent='↻';
+      pair.appendChild(sl);
     } else {
-      const atk = mkCard(p.a, false);
-      if (p.transfer) {
-        atk.style.borderColor = '#9b59b6';
-        atk.style.boxShadow   = '0 4px 12px rgba(0,0,0,.5), 0 0 0 2px #9b59b6, 0 0 14px rgba(155,89,182,.5)';
-      }
-      pair.appendChild(atk);
-      if (p.d) pair.appendChild(mkCard(p.d, true));
+      pair.appendChild(mkCard(p.a, false, !!p.xfer));
+      if (p.d) pair.appendChild(mkCard(p.d, true, false));
     }
-    z.appendChild(pair);
+    grid.appendChild(pair);
   });
 
-  // label
-  document.getElementById('attackLabel').innerHTML = `<span>${sc.label}</span>`;
+  document.getElementById('btnMain').textContent = sc.mainBtn;
+  document.getElementById('btnMain').className   = 'btn-main' + (sc.mainBtn==='Взять'?' take-mode':'');
 
-  // thrown to me
-  const wrap = document.getElementById('thrownToMeWrap');
-  const fanEl = document.getElementById('thrownToMeFan');
-  fanEl.innerHTML = '';
-  const thr = sc.thrownToMe;
-  if (thr && thr.length) {
-    const CW=28, CH=42, VIS=14, n=thr.length;
-    const totalW = VIS*(n-1)+CW;
-    wrap.style.display = 'flex';
-    fanEl.style.width   = totalW+'px';
-    fanEl.style.height  = CH+'px';
-    fanEl.style.position= 'relative';
-    thr.forEach((c,i) => {
+  const plate = document.getElementById('myPlate');
+  const role  = document.getElementById('myRole');
+  plate.className = 'my-plate ' + sc.role;
+  role.className  = 'role-pill ' + sc.role;
+  role.textContent = sc.role === 'atk' ? 'АТАКА' : 'ЗАЩИТА';
+
+  // Thrown to me
+  const tzone = document.getElementById('thrownZone');
+  const trow  = document.getElementById('thrownRow');
+  trow.innerHTML = '';
+  if (sc.thrown && sc.thrown.length) {
+    const TW=30,TH=44,TV=14,tn=sc.thrown.length;
+    tzone.classList.remove('empty');
+    trow.style.cssText = `width:${TV*(tn-1)+TW}px;height:${TH}px;`;
+    sc.thrown.forEach((c,i)=>{
       const el = document.createElement('div');
-      el.className = 'thrown-card'+(c.red?' red':'');
-      el.style.cssText = `left:${i*VIS}px;width:${CW}px;height:${CH}px;z-index:${i};font-size:9px;padding:2px 3px;`;
-      el.innerHTML = `<span>${c.rank}</span><span>${c.suit}</span>`;
-      fanEl.appendChild(el);
+      el.className='thr-c'+(c.red?' red':'');
+      el.style.cssText=`left:${i*TV}px;width:${TW}px;height:${TH}px;z-index:${i};`;
+      el.innerHTML=`<span>${c.r}</span><span>${c.s}</span>`;
+      trow.appendChild(el);
     });
   } else {
-    wrap.style.display = 'none';
+    tzone.classList.add('empty');
   }
 }
-function mkCard(c,isDef) {
-  const el = document.createElement('div');
-  el.className = 'table-card'+(c.red?' red':'')+(isDef?' defense':'');
-  el.innerHTML = `<div>${c.rank}<br>${c.suit}</div><div class="suit-center">${c.suit}</div><div style="transform:rotate(180deg)">${c.rank}<br>${c.suit}</div>`;
-  return el;
-}
 
-// ─── Discard — всегда закрытые рубашки ───────────────────────────────────────
-function buildDiscard() {
-  const s = document.getElementById('discardStack');
-  [-12,-3,9,-5,14].forEach((r,i) => {
-    const el=document.createElement('div'); el.className='discard-card';
-    el.style.cssText=`position:absolute;transform:rotate(${r}deg);top:${i}px;left:${i}px;z-index:${i};background:linear-gradient(145deg,#1e4a90,#2c6dcd);`;
-    s.appendChild(el);
-  });
-}
-
-// ─── Player hand ──────────────────────────────────────────────────────────────
+// ── Render player hand ─────────────────────────────────────────────────────────
 function buildHand() {
-  const fan=document.getElementById('handFan');
-  fan.innerHTML='';
-  const n=MY_CARDS.length, spread=210, maxRot=20;
+  const fan = document.getElementById('handFan');
+  fan.innerHTML = '';
+  const n=MY_CARDS.length, spread=210, maxRot=22;
   MY_CARDS.forEach((c,i) => {
-    const t=n>1?i/(n-1):0.5;
-    const rot=(t-.5)*maxRot*2, xOff=(t-.5)*spread, yOff=Math.pow(t-.5,2)*28;
-    const el=document.createElement('div');
-    el.className='hand-card'+(c.red?' red':'');
-    el.style.cssText=`transform:translateX(${xOff}px) translateY(${yOff}px) rotate(${rot}deg);z-index:${i+1}`;
-    el.innerHTML=`<div>${c.rank}<br>${c.suit}</div><div class="sc">${c.suit}</div><div class="cb">${c.rank}<br>${c.suit}</div>`;
-    el.addEventListener('pointerdown',e=>{
+    const t   = n>1 ? i/(n-1) : 0.5;
+    const rot = (t-.5)*maxRot*2, xOff=(t-.5)*spread, yOff=Math.pow(t-.5,2)*30;
+    const el  = document.createElement('div');
+    el.className = 'hand-card'+(c.red?' red':'');
+    el.style.cssText = `transform:translateX(${xOff}px) translateY(${yOff}px) rotate(${rot}deg);z-index:${i+1};left:calc(50% - 34px);`;
+    el.innerHTML = `<div>${c.r}<br>${c.s}</div><div class="hsc">${c.s}</div><div style="transform:rotate(180deg)">${c.r}<br>${c.s}</div>`;
+    el.addEventListener('pointerdown', e => {
       e.stopPropagation();
-      fan.querySelectorAll('.hand-card.lifted').forEach(restore);
+      fan.querySelectorAll('.hand-card.lifted').forEach(restoreCard);
       el.classList.add('lifted');
-      el.style.transform=`translateX(${xOff}px) translateY(${yOff-44}px) rotate(${rot}deg)`;
-      el.style.zIndex=60;
+      el.style.transform = `translateX(${xOff}px) translateY(${yOff-44}px) rotate(${rot}deg)`;
+      el.style.zIndex = 60;
     });
     fan.appendChild(el);
   });
-  function restore(el) {
-    const i=[...el.parentNode.children].indexOf(el);
-    const t=n>1?i/(n-1):0.5;
-    el.style.transform=`translateX(${(t-.5)*spread}px) translateY(${Math.pow(t-.5,2)*28}px) rotate(${(t-.5)*maxRot*2}deg)`;
-    el.style.zIndex=i+1; el.classList.remove('lifted');
+  function restoreCard(el) {
+    const idx = [...el.parentNode.children].indexOf(el);
+    const t   = n>1 ? idx/(n-1) : 0.5;
+    el.style.transform = `translateX(${(t-.5)*spread}px) translateY(${Math.pow(t-.5,2)*30}px) rotate(${(t-.5)*maxRot*2}deg)`;
+    el.style.zIndex = idx+1; el.classList.remove('lifted');
   }
-  document.addEventListener('pointerup',()=>fan.querySelectorAll('.hand-card.lifted').forEach(restore));
+  document.addEventListener('pointerup', () => fan.querySelectorAll('.hand-card.lifted').forEach(restoreCard));
 }
 
+// ── Controls ───────────────────────────────────────────────────────────────────
 function setCount(n) {
-  document.querySelectorAll('.controls button').forEach((b,i)=>b.classList.toggle('active',i===n-2));
-  renderOpponents(n);
+  count = n;
+  [2,3,4,5,6].forEach(k => document.getElementById('btn'+k).classList.toggle('active', k===n));
+  render();
 }
 
-// Init: перевод карт
-document.getElementById('maxTable').checked = false;
-document.querySelector('.controls select').value = 'transfer';
-buildHand(); renderOpponents(2); renderTable('transfer'); buildDiscard();
+function setScenario(s) { scenario = s; render(); }
+
+function toggleZones(btn) {
+  const phone = document.getElementById('phone');
+  phone.classList.toggle('zones-on');
+  btn.classList.toggle('on');
+}
+
+function render() {
+  const layout = LAYOUTS[count];
+  renderTopBots(layout.top);
+  renderSideBots(layout.side);
+  renderTable();
+}
+
+buildHand();
+render();
 </script>
 </body>
 </html>

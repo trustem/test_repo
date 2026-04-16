@@ -40,10 +40,11 @@ function escHtml(s) {
 }
 
 function mpGetUid() {
-  let uid = sessionStorage.getItem('bardak_uid');
+  // Fallback: если Firebase Auth не отработал, генерируем локальный UID
+  let uid = localStorage.getItem('bardak_uid_fallback');
   if (!uid) {
     uid = 'u_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-    sessionStorage.setItem('bardak_uid', uid);
+    localStorage.setItem('bardak_uid_fallback', uid);
   }
   return uid;
 }
@@ -183,6 +184,12 @@ export function createMultiplayer(callbacks = {}) {
             onGameStateUpdate(data.gameState);
           }
         }
+      } else if (data.status === 'finished') {
+        // Non-host: game ended — show gameover with last known state
+        if (!mp.isHost && data.gameState && data.gameState.gameOver && onGameStateUpdate) {
+          syncLog(data.gameState.logEntries);
+          onGameStateUpdate(data.gameState);
+        }
       }
     }, (error) => {
       console.error('Firestore onSnapshot error:', error);
@@ -230,7 +237,16 @@ export function createMultiplayer(callbacks = {}) {
       }
       mp.enabled = true;
       startGameCallback(playerDefs);
-      await updateDoc(mp.roomRef, { status: 'playing' });
+      // Write status and initial gameState atomically so non-host always
+      // receives both in one snapshot (prevents blank screen race condition)
+      const initialG = engineRef?.getState?.();
+      const update = { status: 'playing' };
+      if (initialG) {
+        update.gameState = JSON.parse(JSON.stringify(initialG, (k, v) =>
+          k === 'botTimer' ? undefined : v
+        ));
+      }
+      await updateDoc(mp.roomRef, update);
     } catch (e) {
       throw new Error('Ошибка запуска игры: ' + e.message);
     }
@@ -275,22 +291,32 @@ export function createMultiplayer(callbacks = {}) {
           const defCard = find(payload.defenseCardId);
           if (defCard) engineRef.doDefend(payload.playerIdx, payload.attackPairIdx, defCard);
         } else if (type === 'take') {
-          engineRef.doTake(action.seatIndex);
+          const defIdx = payload.playerIdx ?? action.seatIndex;
+          engineRef.doTake(defIdx);
         } else if (type === 'attackDone') {
           engineRef.declareAttackDone(payload.playerIdx);
         } else if (type === 'rightNeighborPass') {
           engineRef.doRightNeighborPass(payload.playerIdx);
         } else if (type === 'nakiThrow') {
           const card = find(payload.cardId);
-          if (card) engineRef.doNakiThrow(payload.throwerIdx, card);
-        } else if (type === 'nakiThrowMultiple') {
+          if (card) engineRef.doNakiThrow(payload.playerIdx, card);
+        } else if (type === 'nakiMultiple') {
           const cards = payload.cardIds.map(find).filter(Boolean);
-          if (cards.length > 0) engineRef.doNakiThrowMultiple(payload.throwerIdx, cards);
+          if (cards.length > 0) engineRef.doNakiThrowMultiple(payload.playerIdx, cards);
         } else if (type === 'nakiGiveToHand') {
           const cards = payload.cardIds.map(find).filter(Boolean);
-          if (cards.length > 0) engineRef.doNakiGiveToHand(payload.throwerIdx, cards);
+          if (cards.length > 0) engineRef.doNakiGiveToHand(payload.playerIdx, cards);
         } else if (type === 'nakiGiveToHandPass') {
-          engineRef.doNakiGiveToHandPass(payload.throwerIdx);
+          engineRef.doNakiGiveToHandPass(payload.playerIdx);
+        } else if (type === 'nakiPass') {
+          engineRef.doNakiPass(payload.playerIdx);
+        } else if (type === 'transferThrow') {
+          const card = find(payload.cardId);
+          if (card) engineRef.doTransferThrow(payload.throwerIdx, card);
+        } else if (type === 'transferThrowPass') {
+          engineRef.doTransferThrowPass(payload.throwerIdx);
+        } else if (type === 'chooseTrump') {
+          engineRef.doChooseTrump(payload.playerIdx, payload.suit);
         }
       } catch (e) {
         console.error('handlePendingAction error:', e);
@@ -300,6 +326,30 @@ export function createMultiplayer(callbacks = {}) {
       console.error('handlePendingAction clear error:', e);
       mp.processingAction = false;
     });
+  }
+
+  async function changeMaxPlayers(n) {
+    console.log('[changeMaxPlayers] called with', n, 'isHost:', mp.isHost, 'roomRef:', !!mp.roomRef);
+    if (!mp.roomRef || !mp.isHost) {
+      console.warn('[changeMaxPlayers] blocked — isHost:', mp.isHost, 'roomRef:', !!mp.roomRef);
+      return;
+    }
+    await updateDoc(mp.roomRef, { maxPlayers: n }).catch(e =>
+      console.error('[changeMaxPlayers] Firestore error:', e)
+    );
+    console.log('[changeMaxPlayers] Firestore updated to', n);
+  }
+
+  async function reorderPlayers(newOrderedPlayers) {
+    if (!mp.roomRef || !mp.isHost) return;
+    // Assign seatIndex 0..n-1 based on new array position
+    const updated = newOrderedPlayers.map((p, i) => ({ ...p, seatIndex: i }));
+    // Update host's own local seatIndex
+    const me = updated.find(p => p.uid === mp.uid);
+    if (me) mp.seatIndex = me.seatIndex;
+    await updateDoc(mp.roomRef, { players: updated }).catch(e =>
+      console.error('reorderPlayers error:', e)
+    );
   }
 
   function sendAction(type, payload) {
@@ -337,6 +387,8 @@ export function createMultiplayer(callbacks = {}) {
       if (onLobbyRooms) onLobbyRooms(rooms);
     }, (err) => {
       console.error('startBrowsing error:', err);
+      // Clear so startBrowsing() can be retried once auth is ready
+      roomsUnsubscribe = null;
     });
   }
 
@@ -387,10 +439,14 @@ export function createMultiplayer(callbacks = {}) {
     isEnabled: () => mp.enabled,
     isHost: () => mp.isHost,
     setEnabled: (val) => { mp.enabled = val; },
+    // Устанавливает Firebase UID как основной идентификатор игрока
+    setUid: (uid) => { if (uid) mp.uid = uid; },
     setEngine,
     createRoom,
     joinRoom,
     hostStartGame,
+    changeMaxPlayers,
+    reorderPlayers,
     mpAction,
     syncState,
     markGameOver,

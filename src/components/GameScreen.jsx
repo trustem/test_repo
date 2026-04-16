@@ -7,6 +7,8 @@ import DiscardPile from './DiscardPile';
 import ActionButtons from './ActionButtons';
 import GameLog from './GameLog';
 import DiceRollOverlay from './DiceRollOverlay';
+import GameTooltip from './GameTooltip';
+import { useGameTooltips } from '../hooks/useGameTooltips.js';
 import { SUIT_SYM, isJoker, SCORE_LADDER, SUITS, cardNominal } from '../engine/index.js';
 
 // Horizontal fan: ghost shown only when no cards thrown yet; cards shift sideways
@@ -83,6 +85,8 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
 
   const isMobile = window.innerWidth <= 600;
   const hi = engine.humanPlayerIdx();
+
+  const { tooltip, enabled: tooltipsEnabled, toggleEnabled: toggleTooltips, dismiss: dismissTooltip } = useGameTooltips(G, engine, hi);
 
   const [trumpChoiceTimer, setTrumpChoiceTimer] = useState(10);
 
@@ -227,6 +231,14 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
       <div className="top-bar">
         <span className="top-bar-title">Бардак</span>
         <button className="new-game-btn" onClick={onNewGame}>☰ Меню</button>
+        <button
+          className={`tooltip-toggle-btn${tooltipsEnabled ? ' active' : ''}`}
+          onClick={toggleTooltips}
+          title={tooltipsEnabled ? 'Выключить подсказки' : 'Включить подсказки'}
+        >
+          {tooltipsEnabled ? '💡' : '💡'}
+          <span className={`tooltip-toggle-indicator${tooltipsEnabled ? ' on' : ' off'}`} />
+        </button>
         {hasBot && (
           <button
             className={`debug-btn${debugMode ? ' active' : ''}`}
@@ -238,7 +250,7 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
       </div>
 
       {/* Opponents */}
-      <Opponents G={G} debugMode={debugMode} />
+      <Opponents G={G} hi={hi} debugMode={debugMode} />
 
       {/* Center info: deck + discard */}
       {!isMobileView && (
@@ -359,11 +371,11 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
       {/* Dice roll overlay */}
       {G.dicePhase && <DiceRollOverlay G={G} engine={engine} />}
 
-      {/* Trump choice modal */}
-      {G.trumpChoicePhase && (
+      {/* Trump choice modal — shown only to the player who must choose */}
+      {G.trumpChoicePhase && G.trumpChooserIdx === hi && (
         <TrumpChoiceModal
           chooserName={G.players[G.trumpChooserIdx]?.name}
-          isHuman={G.trumpChooserIdx === hi}
+          isHuman={true}
           timeLeft={trumpChoiceTimer}
           onChoose={(suit) => engine.doChooseTrump(hi, suit)}
         />
@@ -399,6 +411,9 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
           </div>
         </div>
       )}
+
+      {/* Game tooltip */}
+      <GameTooltip text={tooltip} onDismiss={dismissTooltip} />
 
       {/* Undo modal */}
       {showUndo && (

@@ -136,12 +136,23 @@ export function newGameState(playerDefs) {
 // onUpdate(G, UI, logEntry?) is called after every state change.
 // onGameOver(G) is called when game ends.
 // onLog(msg, type) is called for each new log entry.
-export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
+export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpActionHandler }) {
   let G = null;
   let UI = { selectedCards: [], selectedAttackPairIdx: null };
   let undoState = null;
   let debugMode = false;
   let pendingBotAction = null;
+  let _mpActionHandler = mpActionHandler || null;
+  let discardPauseTimer = null;
+
+  // Route action through multiplayer if handler is set (non-host), else run locally
+  function execAction(type, payload, localFn) {
+    if (_mpActionHandler) {
+      _mpActionHandler(type, payload, localFn);
+    } else {
+      localFn();
+    }
+  }
 
   function humanPlayerIdx() {
     if (typeof getMpSeatIndex === 'function') {
@@ -811,7 +822,14 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       notify();
       scheduleBot();
     } else {
-      doDiscard();
+      // Pause 2.5 s so players can see the successful defense before cards clear
+      if (discardPauseTimer) clearTimeout(discardPauseTimer);
+      G.phase = 'discard_pause';
+      notify();
+      discardPauseTimer = setTimeout(() => {
+        discardPauseTimer = null;
+        if (G && G.phase === 'discard_pause') doDiscard();
+      }, 2500);
     }
   }
 
@@ -1358,8 +1376,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     } else if (G.phase === 'attack' && G.attackDone && G.rightNeighborThrowing) {
       if (nominalOnTable(cardNominal(card)) && G.tablePairs.length < getAttackLimit()) {
         UI.selectedCards = [];
-        saveUndoState();
-        doThrow(hi, card);
+        execAction('throw', { playerIdx: hi, cardId: card.id }, () => { saveUndoState(); doThrow(hi, card); });
       }
     } else if (G.phase === 'defense') {
       if (UI.selectedAttackPairIdx !== null) {
@@ -1368,8 +1385,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
           const atkPairIdx = UI.selectedAttackPairIdx;
           UI.selectedAttackPairIdx = null;
           UI.selectedCards = [];
-          saveUndoState();
-          doDefend(hi, atkPairIdx, card);
+          execAction('defense', { playerIdx: hi, attackPairIdx: atkPairIdx, defenseCardId: card.id }, () => { saveUndoState(); doDefend(hi, atkPairIdx, card); });
           return;
         }
       }
@@ -1395,8 +1411,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
         if (pair && !pair.defense && canBeat(pair.attack, card, G.trumpSuit)) {
           UI.selectedAttackPairIdx = null;
           UI.selectedCards = [];
-          saveUndoState();
-          doDefend(hi, pairIdx, card);
+          execAction('defense', { playerIdx: hi, attackPairIdx: pairIdx, defenseCardId: card.id }, () => { saveUndoState(); doDefend(hi, pairIdx, card); });
           return;
         }
       }
@@ -1448,6 +1463,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
   // ─── PUBLIC API ──────────────────────────────────────────────
   return {
     startGame(playerDefs) {
+      if (discardPauseTimer) { clearTimeout(discardPauseTimer); discardPauseTimer = null; }
       G = newGameState(playerDefs);
       UI = { selectedCards: [], selectedAttackPairIdx: null };
       undoState = null;
@@ -1456,6 +1472,9 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
       dealRound();
     },
     getState() { return G ? { ...G } : null; },
+    // For multiplayer non-host: sync engine's internal G with Firestore state
+    // so engine helper methods (isHumanTurn, leftThrowerIdx, etc.) work correctly
+    loadState(state) { G = state ? { ...state } : null; },
     getUI() { return { ...UI }; },
     humanPlayerIdx,
     isHumanTurn,
@@ -1479,34 +1498,35 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex }) {
     isDeuceJoker,
     cardNominal,
     cardLabel,
-    // Actions
-    doAttack: (playerIdx, cards) => { saveUndoState(); doAttack(playerIdx, cards); },
-    doDefend: (defenderIdx, attackPairIdx, defenseCard) => { saveUndoState(); doDefend(defenderIdx, attackPairIdx, defenseCard); },
-    doTransfer: (defenderIdx, card) => { saveUndoState(); doTransfer(defenderIdx, card); },
-    doTransferThrow: (throwerIdx, card) => { saveUndoState(); doTransferThrow(throwerIdx, card); },
-    doTransferThrowPass: (throwerIdx) => { doTransferThrowPass(throwerIdx); },
-    doTake: (defenderIdx) => { saveUndoState(); doTake(defenderIdx); },
-    doThrow: (throwerIdx, card) => { saveUndoState(); doThrow(throwerIdx, card); },
-    declareAttackDone: (playerIdx) => { declareAttackDone(playerIdx); },
-    doRightNeighborPass: (playerIdx) => { doRightNeighborPass(playerIdx); },
-    doNakiThrow: (throwerIdx, card) => { saveUndoState(); doNakiThrow(throwerIdx, card); },
-    doNakiThrowMultiple: (throwerIdx, cards) => { saveUndoState(); doNakiThrowMultiple(throwerIdx, cards); },
-    doNakiPass: (playerIdx) => { doNakiPass(playerIdx); },
-    doNakiGiveToHand: (throwerIdx, cards) => { saveUndoState(); doNakiGiveToHand(throwerIdx, cards); },
-    doNakiGiveToHandPass: (throwerIdx) => { doNakiGiveToHandPass(throwerIdx); },
+    // Actions — all route through execAction so non-host sends via Firestore
+    doAttack: (playerIdx, cards) => execAction('attack', { playerIdx, cardIds: cards.map(c => c.id) }, () => { saveUndoState(); doAttack(playerIdx, cards); }),
+    doDefend: (defenderIdx, attackPairIdx, defenseCard) => execAction('defense', { playerIdx: defenderIdx, attackPairIdx, defenseCardId: defenseCard.id }, () => { saveUndoState(); doDefend(defenderIdx, attackPairIdx, defenseCard); }),
+    doTransfer: (defenderIdx, card) => execAction('transfer', { playerIdx: defenderIdx, cardId: card.id }, () => { saveUndoState(); doTransfer(defenderIdx, card); }),
+    doTransferThrow: (throwerIdx, card) => execAction('transferThrow', { throwerIdx, cardId: card.id }, () => { saveUndoState(); doTransferThrow(throwerIdx, card); }),
+    doTransferThrowPass: (throwerIdx) => execAction('transferThrowPass', { throwerIdx }, () => { doTransferThrowPass(throwerIdx); }),
+    doTake: (defenderIdx) => execAction('take', { playerIdx: defenderIdx }, () => { saveUndoState(); doTake(defenderIdx); }),
+    doThrow: (throwerIdx, card) => execAction('throw', { playerIdx: throwerIdx, cardId: card.id }, () => { saveUndoState(); doThrow(throwerIdx, card); }),
+    declareAttackDone: (playerIdx) => execAction('attackDone', { playerIdx }, () => { declareAttackDone(playerIdx); }),
+    doRightNeighborPass: (playerIdx) => execAction('rightNeighborPass', { playerIdx }, () => { doRightNeighborPass(playerIdx); }),
+    doNakiThrow: (throwerIdx, card) => execAction('nakiThrow', { playerIdx: throwerIdx, cardId: card.id }, () => { saveUndoState(); doNakiThrow(throwerIdx, card); }),
+    doNakiThrowMultiple: (throwerIdx, cards) => execAction('nakiMultiple', { playerIdx: throwerIdx, cardIds: cards.map(c => c.id) }, () => { saveUndoState(); doNakiThrowMultiple(throwerIdx, cards); }),
+    doNakiPass: (playerIdx) => execAction('nakiPass', { playerIdx }, () => { doNakiPass(playerIdx); }),
+    doNakiGiveToHand: (throwerIdx, cards) => execAction('nakiGiveToHand', { playerIdx: throwerIdx, cardIds: cards.map(c => c.id) }, () => { saveUndoState(); doNakiGiveToHand(throwerIdx, cards); }),
+    doNakiGiveToHandPass: (throwerIdx) => execAction('nakiGiveToHandPass', { playerIdx: throwerIdx }, () => { doNakiGiveToHandPass(throwerIdx); }),
     humanCardClick,
     selectAttackPair,
     hasUndoState,
     applyUndo,
-    resolveDiceRoll: () => resolveDiceRoll(),
-    doChooseTrump: (playerIdx, suit) => doChooseTrump(playerIdx, suit),
-    showUndoApproval: () => {}, // handled by React component
+    resolveDiceRoll: () => execAction('resolveDice', {}, () => { resolveDiceRoll(); }),
+    doChooseTrump: (playerIdx, suit) => execAction('chooseTrump', { playerIdx, suit }, () => { doChooseTrump(playerIdx, suit); }),
+    showUndoApproval: () => {},
     getDebugMode,
     setDebugMode,
     getPendingBotAction,
     runPendingBotAction,
     getNextBotActionDescription,
-    // mpAction wrapper — for multiplayer; in solo mode just runs the action directly
+    setMpActionHandler: (handler) => { _mpActionHandler = handler; },
+    // Legacy no-op (kept for compatibility)
     mpAction(actionType, params, localAction) {
       if (localAction) localAction();
     },

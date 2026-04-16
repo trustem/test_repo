@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Humiliation Demo</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: sans-serif; background: #111; color: #fff; }
+
+/* Nav */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 8px; background: rgba(0,0,0,0.7);
+}
+.nav button {
+  padding: 6px 12px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.1); color: #fff; cursor: pointer; font-size: 12px;
+  transition: background 0.2s;
+}
+.nav button:hover, .nav button.active { background: rgba(255,255,255,0.25); }
+
+/* Overlay */
+.humil-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 10px; cursor: pointer; user-select: none; overflow: hidden;
+  animation: humilIn 0.4s cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+@keyframes humilIn {
+  from { transform: scale(1.1); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.humil-overlay.shake { animation: humilShake 0.45s ease; }
+@keyframes humilShake {
+  0%,100% { transform: translate(0,0) rotate(0deg); }
+  15%  { transform: translate(-6px,2px) rotate(-1.5deg); }
+  30%  { transform: translate(6px,-2px) rotate(1.5deg); }
+  45%  { transform: translate(-4px,1px) rotate(-1deg); }
+  60%  { transform: translate(4px,-1px) rotate(1deg); }
+  75%  { transform: translate(-2px,0) rotate(-0.5deg); }
+}
+
+.humil-rank-title {
+  font-size: clamp(1.6rem, 5vw, 2.8rem); font-weight: 900; letter-spacing: 1px;
+  text-align: center; padding: 0 12px; line-height: 1.2;
+  animation: humilTitlePop 0.5s cubic-bezier(0.34,1.5,0.64,1) 0.1s both;
+}
+@keyframes humilTitlePop {
+  from { transform: scale(0.5) translateY(-20px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+.humil-crowd-top {
+  font-size: clamp(1.2rem,4vw,2rem); letter-spacing: 4px; opacity: 0.9;
+  animation: crowdIn 0.4s ease 0.3s both;
+}
+@keyframes crowdIn {
+  from { transform: translateY(-15px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 0.9; }
+}
+.humil-art {
+  position: relative; display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+}
+.humil-joker-fly {
+  font-size: 40px;
+  animation: jokerFly 0.6s cubic-bezier(0.34,1.5,0.64,1) 0.2s both;
+  filter: drop-shadow(0 0 12px rgba(255,200,0,0.6));
+}
+@keyframes jokerFly {
+  from { transform: translateY(-60px) rotate(-30deg) scale(0.5); opacity: 0; }
+  to   { transform: translateY(0) rotate(5deg) scale(1); opacity: 1; }
+}
+.humil-skull-drop {
+  font-size: 48px;
+  animation: skullDrop 0.5s cubic-bezier(0.34,1.4,0.64,1) 0.15s both;
+}
+@keyframes skullDrop {
+  from { transform: translateY(-50px) scale(0.3); opacity: 0; }
+  to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+.humil-crown-drop {
+  font-size: 52px;
+  animation: crownDrop 0.6s cubic-bezier(0.34,1.5,0.64,1) 0.1s both;
+  filter: drop-shadow(0 0 16px rgba(255,0,64,0.7));
+}
+@keyframes crownDrop {
+  from { transform: translateY(-80px) rotate(20deg) scale(0); opacity: 0; }
+  60%  { transform: translateY(8px) rotate(-5deg) scale(1.15); opacity: 1; }
+  to   { transform: translateY(0) rotate(0) scale(1); opacity: 1; }
+}
+.humil-scene {
+  display: flex; align-items: center; gap: 14px;
+  animation: sceneIn 0.4s ease 0.35s both;
+}
+@keyframes sceneIn {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.humil-loser-face {
+  font-size: 64px;
+  animation: loserBounce 0.8s ease-in-out 0.5s infinite alternate;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+}
+@keyframes loserBounce {
+  from { transform: scale(1) translateY(0); }
+  to   { transform: scale(1.06) translateY(-4px); }
+}
+.humil-laugh { font-size: 36px; animation: laughWiggle 0.6s ease-in-out infinite alternate; }
+.humil-laugh.left  { animation-delay: 0s; }
+.humil-laugh.right { animation-delay: 0.3s; }
+@keyframes laughWiggle {
+  from { transform: rotate(-8deg) scale(1); }
+  to   { transform: rotate(8deg) scale(1.1); }
+}
+.humil-impact {
+  font-size: 32px; position: absolute; top: -10px; right: -20px;
+  animation: impactPop 0.4s ease 0.4s both;
+}
+@keyframes impactPop {
+  from { transform: scale(0) rotate(-30deg); opacity: 0; }
+  to   { transform: scale(1) rotate(10deg); opacity: 1; }
+}
+.humil-name {
+  font-size: clamp(1.2rem,4vw,1.8rem); font-weight: 900; color: #fff;
+  text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.9);
+  letter-spacing: 1px; padding: 4px 16px;
+  background: rgba(0,0,0,0.4); border-radius: 8px;
+  animation: nameIn 0.4s cubic-bezier(0.34,1.3,0.64,1) 0.45s both;
+}
+.humil-name.royal { color: #ff4466; text-shadow: 0 0 30px rgba(255,0,64,0.8); font-size: clamp(1rem,3.5vw,1.5rem); }
+@keyframes nameIn {
+  from { transform: scale(0.6) translateY(15px); opacity: 0; }
+  to   { transform: scale(1) translateY(0); opacity: 1; }
+}
+.humil-crowd-row {
+  font-size: clamp(1rem,3vw,1.4rem); letter-spacing: 2px; opacity: 0.9;
+  animation: crowdRowIn 0.3s ease 0.6s both;
+}
+@keyframes crowdRowIn {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 0.9; }
+}
+.humil-fire-row {
+  font-size: clamp(1.2rem,3.5vw,1.6rem); letter-spacing: 4px;
+  animation: fireFlicker 0.5s ease-in-out infinite alternate;
+}
+@keyframes fireFlicker {
+  from { transform: scale(1) translateY(0); filter: brightness(1); }
+  to   { transform: scale(1.05) translateY(-2px); filter: brightness(1.2); }
+}
+.humil-suck-scene {
+  display: flex; align-items: center; gap: 4px; font-size: 40px;
+  animation: suckIn 0.5s ease 0.2s both;
+}
+@keyframes suckIn {
+  from { transform: translateX(-20px); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+.humil-wind { animation: windBlow 0.6s ease-in-out infinite alternate; }
+@keyframes windBlow {
+  from { transform: translateX(0) scaleX(1); opacity: 0.7; }
+  to   { transform: translateX(6px) scaleX(1.1); opacity: 1; }
+}
+.humil-continue-hint {
+  font-size: 13px; color: rgba(255,255,255,0.4); margin-top: 8px;
+  animation: hintBlink 1.5s ease-in-out infinite alternate;
+}
+@keyframes hintBlink {
+  from { opacity: 0.3; } to { opacity: 0.7; }
+}
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <button onclick="show('proeb')" id="btn-proeb">Проебал</button>
+  <button onclick="show('super')" id="btn-super">Суперпроебал</button>
+  <button onclick="show('supermega')" id="btn-supermega">Супермегапроебал</button>
+  <button onclick="show('otsos')" id="btn-otsos">Суперотсосал</button>
+  <button onclick="show('megaotsos')" id="btn-megaotsos">Супермегаотсосал</button>
+  <button onclick="show('royal')" id="btn-royal">👑 Королевский отсос</button>
+</div>
+
+<div id="scene"></div>
+
+<script>
+const NAMES = ['Вася', 'Петя', 'Женёк', 'Артём'];
+const RANKS = {
+  proeb: {
+    title: 'ПРОЕБАЛ',
+    color: '#e67e22',
+    glow: 'rgba(230,126,34,0.4)',
+    bg: 'radial-gradient(ellipse at center, #2a1200 0%, #0d0800 100%)',
+    crowd: '🤣🤣🤣',
+    html: (name) => `
+      <div class="humil-joker-fly">🃏</div>
+      <div class="humil-scene">
+        <div class="humil-laugh left">🤣</div>
+        <div class="humil-loser-face">😭</div>
+        <div class="humil-laugh right">🤣</div>
+      </div>
+      <div class="humil-name">${name}</div>
+      <div class="humil-impact">💥</div>
+    `
+  },
+  super: {
+    title: 'СУПЕРПРОЕБАЛ',
+    color: '#e74c3c',
+    glow: 'rgba(231,76,60,0.5)',
+    bg: 'radial-gradient(ellipse at center, #2a0a08 0%, #0d0404 100%)',
+    crowd: '🤣😂🤣😂🤣',
+    html: (name) => `
+      <div class="humil-skull-drop">💀</div>
+      <div class="humil-joker-fly" style="animation-delay:0.15s">🃏</div>
+      <div class="humil-scene">
+        <div class="humil-laugh left">😂</div>
+        <div class="humil-loser-face">😱</div>
+        <div class="humil-laugh right">😂</div>
+      </div>
+      <div class="humil-name">${name}</div>
+      <div class="humil-crowd-row">🤣&nbsp;🤣&nbsp;🤣&nbsp;🤣</div>
+    `
+  },
+  supermega: {
+    title: 'СУПЕРМЕГАПРОЕБАЛ',
+    color: '#c0392b',
+    glow: 'rgba(192,57,43,0.6)',
+    bg: 'radial-gradient(ellipse at center, #1a0000 0%, #0a0000 100%)',
+    crowd: '🤣😂💀😂🤣',
+    html: (name) => `
+      <div class="humil-fire-row">🔥&nbsp;💀&nbsp;🔥</div>
+      <div class="humil-scene">
+        <div class="humil-laugh left">🤣</div>
+        <div class="humil-loser-face">😵</div>
+        <div class="humil-laugh right">🤣</div>
+      </div>
+      <div class="humil-name">${name}</div>
+      <div class="humil-crowd-row">🤣&nbsp;😂&nbsp;🤣&nbsp;😂&nbsp;🤣</div>
+      <div class="humil-joker-fly" style="font-size:28px;animation-delay:0.2s">🃏</div>
+    `
+  },
+  otsos: {
+    title: 'СУПЕРОТСОСАЛ',
+    color: '#8e44ad',
+    glow: 'rgba(142,68,173,0.5)',
+    bg: 'radial-gradient(ellipse at center, #1a0025 0%, #080010 100%)',
+    crowd: '🤣😂🤣😂🤣😂',
+    html: (name) => `
+      <div class="humil-suck-scene">
+        <span>👅</span>
+        <span class="humil-wind">💨💨</span>
+      </div>
+      <div class="humil-scene">
+        <div class="humil-laugh left">😂</div>
+        <div class="humil-loser-face">😭</div>
+        <div class="humil-laugh right">😂</div>
+      </div>
+      <div class="humil-name">${name}</div>
+      <div class="humil-crowd-row">🤣&nbsp;😂&nbsp;🤣&nbsp;😂&nbsp;🤣&nbsp;😂</div>
+    `
+  },
+  megaotsos: {
+    title: 'СУПЕРМЕГАОТСОСАЛ',
+    color: '#6c1fa8',
+    glow: 'rgba(108,31,168,0.6)',
+    bg: 'radial-gradient(ellipse at center, #100020 0%, #050010 100%)',
+    crowd: '💀🤣😂🤣💀',
+    html: (name) => `
+      <div class="humil-fire-row">💀&nbsp;👅&nbsp;💨&nbsp;🌪️</div>
+      <div class="humil-scene">
+        <div class="humil-laugh left">💀</div>
+        <div class="humil-loser-face">😵</div>
+        <div class="humil-laugh right">💀</div>
+      </div>
+      <div class="humil-name">${name}</div>
+      <div class="humil-crowd-row">🤣&nbsp;😂&nbsp;💀&nbsp;😂&nbsp;🤣&nbsp;💀</div>
+      <div class="humil-fire-row" style="font-size:24px">🔥&nbsp;🔥&nbsp;🔥&nbsp;🔥&nbsp;🔥</div>
+    `
+  },
+  royal: {
+    title: '👑 КОРОЛЕВСКИЙ ОТСОС 👑',
+    color: '#ff0040',
+    glow: 'rgba(255,0,64,0.7)',
+    bg: 'radial-gradient(ellipse at center, #1a0010 0%, #050008 100%)',
+    crowd: '👑💀🤣💀👑',
+    html: (name) => `
+      <div class="humil-crown-drop">👑</div>
+      <div class="humil-fire-row">💀&nbsp;👅&nbsp;💨&nbsp;👅&nbsp;💀</div>
+      <div class="humil-scene">
+        <div class="humil-laugh left">🔥</div>
+        <div class="humil-loser-face" style="font-size:54px">💀</div>
+        <div class="humil-laugh right">🔥</div>
+      </div>
+      <div class="humil-name royal">${name}</div>
+      <div class="humil-crowd-row">🤣&nbsp;💀&nbsp;🤣&nbsp;💀&nbsp;🤣&nbsp;💀&nbsp;🤣</div>
+      <div class="humil-fire-row">🔥&nbsp;🔥&nbsp;🔥&nbsp;🔥&nbsp;🔥&nbsp;🔥</div>
+    `
+  },
+};
+
+let shakeTimer;
+function show(key) {
+  const cfg = RANKS[key];
+  const name = NAMES[Math.floor(Math.random() * NAMES.length)];
+  document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + key).classList.add('active');
+
+  clearInterval(shakeTimer);
+  document.getElementById('scene').innerHTML = `
+    <div class="humil-overlay" id="overlay" style="background:${cfg.bg}" onclick="show('${key}')">
+      <div class="humil-rank-title" style="color:${cfg.color};text-shadow:0 0 30px ${cfg.glow}">${cfg.title}</div>
+      <div class="humil-crowd-top">${cfg.crowd}</div>
+      <div class="humil-art">${cfg.html(name)}</div>
+      <div class="humil-continue-hint">Нажми чтобы увидеть снова (с новым именем)</div>
+    </div>
+  `;
+  shakeTimer = setInterval(() => {
+    const el = document.getElementById('overlay');
+    if (!el) return;
+    el.classList.add('shake');
+    setTimeout(() => el.classList.remove('shake'), 500);
+  }, 2500);
+}
+
+show('proeb');
+</script>
+</body>
+</html>

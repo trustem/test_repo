@@ -108,8 +108,8 @@ function SideBotFan({ count }) {
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
-export default function Opponents({ G, debugMode }) {
-  const hi         = G.players.findIndex(p => !p.isBot);
+export default function Opponents({ G, hi: hiProp, debugMode }) {
+  const hi         = hiProp ?? G.players.findIndex(p => !p.isBot);
   const nonHuman   = G.players.map((p, i) => ({ p, i })).filter(({ i }) => i !== hi);
   const currentAttackerIdx = G.attackerIdx;
 

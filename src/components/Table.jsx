@@ -15,13 +15,13 @@ export default function Table({ G, UI, engine, humanPlayerIdx }) {
 
   // ─── Table-level drag handlers (attack drop zone) ────────────
   const handleTableDragOver = useCallback((e) => {
+    e.preventDefault(); // must call unconditionally to allow drop event
     if (!window.__dragState || window.__dragState.type !== 'hand') return;
     const card = G.players[hi]?.hand.find(c => c.id === window.__dragState.cardId);
     if (!card) return;
     const isValidThrow = (G.tablePairs.length === 0 && !G.attackDone) ||
-      (engine.allBeaten() && engine.nominalOnTable(cardNominal(card)) && G.tablePairs.length < engine.getAttackLimit());
+      ((engine.allBeaten() || G.defenderTaking) && engine.nominalOnTable(cardNominal(card)) && G.tablePairs.length < engine.getAttackLimit());
     if (isValidThrow) {
-      e.preventDefault();
       tableRef.current?.classList.add('drag-valid-zone');
     }
   }, [G, hi, engine]);
@@ -41,7 +41,7 @@ export default function Table({ G, UI, engine, humanPlayerIdx }) {
     window.__dragState = null;
     if (G.tablePairs.length === 0 && G.phase === 'attack' && !G.attackDone && engine.leftThrowerIdx() === hi) {
       engine.doAttack(hi, [card]);
-    } else if (engine.allBeaten() && engine.nominalOnTable(cardNominal(card)) && G.tablePairs.length < engine.getAttackLimit()) {
+    } else if ((engine.allBeaten() || G.defenderTaking) && engine.nominalOnTable(cardNominal(card)) && G.tablePairs.length < engine.getAttackLimit()) {
       engine.doThrow(hi, card);
     }
   }, [G, hi, engine]);
@@ -80,6 +80,11 @@ export default function Table({ G, UI, engine, humanPlayerIdx }) {
         onDragLeave={isHumanAttacking && !isMobile ? handleTableDragLeave : undefined}
         onDrop={isHumanAttacking && !isMobile ? handleTableDrop : undefined}
       >
+        {/* Empty-table drop hint for desktop attackers */}
+        {!isMobile && isHumanAttacking && G.tablePairs.length === 0 && !G.attackDone && (
+          <div className="table-cards-empty-hint">Перетащи карту сюда</div>
+        )}
+
         {G.tablePairs.filter(p => !p.isNaki).map((pair, pairIdx) => (
           <TablePair
             key={pairIdx}
