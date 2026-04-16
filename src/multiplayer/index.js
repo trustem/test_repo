@@ -2,7 +2,7 @@
 //  БАРДАК — Multiplayer module (Firebase Firestore, React-adapted)
 // ═══════════════════════════════════════════════════════════════
 
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getFirestore,
   doc,
@@ -29,7 +29,7 @@ let db;
 
 function getDb() {
   if (!db) {
-    firebaseApp = initializeApp(firebaseConfig);
+    firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
     db = getFirestore(firebaseApp);
   }
   return db;
