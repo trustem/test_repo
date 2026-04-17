@@ -44,7 +44,7 @@ function executeTouchDrop(zone, el, card, G, engine, hi) {
       if (G.nakiJokerMode) {
         if (isJoker(card)) engine.doNakiThrow(hi, card);
       } else {
-        const scoreNom = SCORE_LADDER[G.players[G.defenderIdx].score];
+        const scoreNom = G.nakiNominal || SCORE_LADDER[G.players[G.defenderIdx].score];
         if (cardNominal(card) === scoreNom) engine.doNakiThrow(hi, card);
       }
     }
@@ -83,7 +83,7 @@ function isTouchDropValid(zone, el, card, G, engine, hi) {
     if (!(G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length === 0 &&
           G.nakiPending.length > 0 && G.nakiPending[0] === hi)) return false;
     if (G.nakiJokerMode) return isJoker(card);
-    const scoreNom = SCORE_LADDER[G.players[G.defenderIdx].score];
+    const scoreNom = G.nakiNominal || SCORE_LADDER[G.players[G.defenderIdx].score];
     return cardNominal(card) === scoreNom;
   }
   return false;

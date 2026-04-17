@@ -101,6 +101,7 @@ export function newGameState(playerDefs) {
     nakiJokerThrowers: [],
     nakiGiveToHandPending: [],
     nakiGiveToHandLimit: 0,
+    nakiNominal: null,
     defenderTaking: false,
     nakiDisplayCards: [],   // cards thrown during nakidyvanie — persists until next naki cycle
     nakiDefenderIdx: null,
@@ -529,6 +530,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
     G.humanTransferThrowPassed = false;
     G.nakiGiveToHandPending = [];
     G.nakiGiveToHandLimit = 0;
+    G.nakiNominal = null;
     G.defenderTaking = false;
     G.nakiDisplayCards = [];
     G.nakiDefenderIdx = null;
@@ -959,6 +961,9 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
   function startNakidyvaniePhase() {
     const defenderIdx = G.defenderIdx;
     const defScoreNom = SCORE_LADDER[G.players[defenderIdx].score];
+    // Lock the nominal for the entire nakidyvanie phase so score increases
+    // mid-phase don't change what nominal subsequent throwers must use
+    G.nakiNominal = G.nakiJokerMode ? null : defScoreNom;
     if (G.nakiJokerMode) {
       G.nakiPending = G.players.filter(p => !p.exited && p.id !== defenderIdx && p.hand.some(c => isJoker(c))).map(p => p.id);
     } else {
@@ -988,11 +993,10 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
       G.players[defenderIdx].score = Math.min(G.players[defenderIdx].score + 1, SCORE_LADDER.length - 1);
       removeFromHand(throwerIdx, card);
       G.players[defenderIdx].nakiCards.push(card);
-      // If defender still has unique-lowest score, keep all pending (each player
-      // can throw again until they press pass). Otherwise end the throw round.
-      if (!isUniqueLowestRankPlayer(defenderIdx)) {
-        G.nakiPending = [];
-      }
+      // Keep all pending — every player in nakiPending can throw ALL their cards
+      // of nakiNominal (the nominal locked at phase start), then pass.
+      // Do NOT clear based on isUniqueLowestRankPlayer: that caused later
+      // players to be skipped entirely.
     }
     G.tablePairs.push({ attack: card, defense: null, attacker: throwerIdx, isNaki: true });
     // Accumulate into per-player display array (persists until dealRound)
@@ -1079,6 +1083,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
     G.transferThrowNominal = null;
     G.humanTransferThrowPassed = false;
     G.defenderTaking = false;
+    G.nakiNominal = null;
     G.throwers = [];
     const drawOrder = [];
     const addUniq = idx => { if (!drawOrder.includes(idx)) drawOrder.push(idx); };
@@ -1314,7 +1319,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
 
   function botDoNaki(botIdx) {
     const defIdx = G.defenderIdx;
-    const scoreNom = SCORE_LADDER[G.players[defIdx].score];
+    // Use the locked nominal — never the current (post-throw-incremented) score
+    const scoreNom = G.nakiNominal || SCORE_LADDER[G.players[defIdx].score];
     if (G.nakiJokerMode) {
       const joker = G.players[botIdx].hand.find(c => isDeuceJoker(c)) || G.players[botIdx].hand.find(c => isJoker(c));
       if (joker) doNakiThrow(botIdx, joker);

@@ -96,7 +96,7 @@ export default function ActionButtons({ G, UI, engine, humanPlayerIdx, undoState
   // Nakidyvanie phase 2: throw score nominal
   if (G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length === 0 && G.nakiPending.length > 0 && G.nakiPending[0] === hi) {
     const defIdx = G.defenderIdx;
-    const scoreNom = SCORE_LADDER[G.players[defIdx].score];
+    const scoreNom = G.nakiNominal || SCORE_LADDER[G.players[defIdx].score];
 
     if (G.nakiJokerMode) {
       const jokers = p.hand.filter(c => isJoker(c));

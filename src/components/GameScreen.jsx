@@ -214,7 +214,7 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
         && G.nakiPending.length > 0 && G.nakiPending[0] === hi) {
       const noMatch = G.nakiJokerMode
         ? !p.hand.some(c => isJoker(c))
-        : !p.hand.some(c => cardNominal(c) === SCORE_LADDER[G.players[G.defenderIdx].score]);
+        : !p.hand.some(c => cardNominal(c) === (G.nakiNominal || SCORE_LADDER[G.players[G.defenderIdx].score]));
       if (noMatch) { engine.doNakiPass(hi); return; }
     }
   }, [
