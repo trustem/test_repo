@@ -4,7 +4,8 @@
 
 import { getApps, initializeApp, getApp } from 'firebase/app';
 import {
-  getAuth, initializeAuth, browserLocalPersistence, signInAnonymously,
+  getAuth, initializeAuth, browserLocalPersistence, browserPopupRedirectResolver,
+  signInAnonymously,
   GoogleAuthProvider, linkWithPopup, signInWithPopup,
   linkWithRedirect, signInWithRedirect, getRedirectResult,
 } from 'firebase/auth';
@@ -62,7 +63,10 @@ function ensureApp() {
 // IndexedDB (Firebase's default) can hang indefinitely in iOS WKWebView.
 function ensureAuth(app) {
   try {
-    return initializeAuth(app, { persistence: browserLocalPersistence });
+    return initializeAuth(app, {
+      persistence: browserLocalPersistence,
+      popupRedirectResolver: browserPopupRedirectResolver,
+    });
   } catch {
     return getAuth(app);
   }
@@ -375,11 +379,11 @@ export async function linkGoogleAccount() {
 
     if (auth.currentUser) {
       // Link existing anonymous session to Google — preserves UID and all stats
-      const result = await linkWithPopup(auth.currentUser, provider);
+      const result = await linkWithPopup(auth.currentUser, provider, browserPopupRedirectResolver);
       user = result.user;
     } else {
       // No session: sign in with Google directly
-      const result = await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       user = result.user;
     }
 
@@ -427,7 +431,7 @@ export async function linkGoogleAccount() {
     // → sign in with Google directly to restore that existing account
     if (e.code === 'auth/credential-already-in-use') {
       try {
-        const result = await signInWithPopup(auth, provider);
+        const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
         const user = result.user;
         const firebaseUid = user.uid;
         localStorage.setItem(FIREBASE_UID_KEY, firebaseUid);
