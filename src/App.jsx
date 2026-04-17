@@ -144,21 +144,42 @@ export default function App() {
     if (mpRef.current && engineRef.current) mpRef.current.setEngine(engineRef.current);
   }, []);
 
-  // ─── Init Firebase Auth ───────────────────────────────────────
+  // ─── Init Firebase Auth + session reconnect ──────────────────
   useEffect(() => {
-    initAuth().then(({ firebaseUid, name, photoURL }) => {
+    initAuth().then(async ({ firebaseUid, name, photoURL }) => {
       firebaseUidRef.current = firebaseUid;
       if (mpRef.current && firebaseUid) {
         mpRef.current.setUid(firebaseUid);
-        // Restart browsing now that Firebase Auth is ready — the earlier
-        // startBrowsing() call may have failed with "permission denied" because
-        // anonymous sign-in wasn't complete yet. Calling again is safe: it
-        // no-ops if the subscription is already live, or re-subscribes if it
-        // failed and cleared itself.
         mpRef.current.startBrowsing();
       }
       setUserProfile({ name: name || '', photoURL: photoURL || null });
       setAuthReady(true);
+
+      // ── Session reconnect ──────────────────────────────────────
+      // Try to restore the last multiplayer session after page refresh
+      const raw = localStorage.getItem('bardak_session');
+      if (raw && mpRef.current) {
+        try {
+          const { roomCode } = JSON.parse(raw);
+          const result = await mpRef.current.reconnect(roomCode);
+          if (result?.type === 'waiting') {
+            setWaitingData(result.roomData);
+            setMpState(mpRef.current.getState());
+            setScreen('waiting');
+          } else if (result?.type === 'game' && result.gameState) {
+            engineRef.current?.loadState(result.gameState);
+            setGameState({ ...result.gameState });
+            setMpState(mpRef.current.getState());
+            // Host needs engine running — non-host just receives state via listenRoom
+            if (mpRef.current.isHost()) {
+              mpRef.current.setEnabled(true);
+            }
+            setScreen('game');
+          }
+        } catch (e) {
+          console.warn('[app] session reconnect error:', e.message);
+        }
+      }
     });
   }, []);
 

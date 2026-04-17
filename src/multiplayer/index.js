@@ -137,6 +137,7 @@ export function createMultiplayer(callbacks = {}) {
       });
       startHeartbeat();
       listenRoom();
+      saveSession();
       return { code, isHost: true, seatIndex: 0 };
     } catch (e) {
       throw new Error('Ошибка создания комнаты: ' + e.message);
@@ -170,6 +171,7 @@ export function createMultiplayer(callbacks = {}) {
       mp.seatIndex = seatIndex;
       mp.roomRef = roomRef;
       listenRoom();
+      saveSession();
       return { code: mp.roomCode, isHost: false, seatIndex };
     } catch (e) {
       throw new Error(e.message);
@@ -431,17 +433,60 @@ export function createMultiplayer(callbacks = {}) {
     mp.roomRef = null;
     mp.processingAction = false;
     mp.logRenderedCount = 0;
+    clearSession();
     if (onReset) onReset();
     startBrowsing();
   }
 
-  // Cleanup on tab close
-  if (typeof window !== 'undefined') {
-    window.addEventListener('beforeunload', () => {
-      if (mp.roomRef && mp.isHost) {
-        updateDoc(mp.roomRef, { status: 'finished', gameState: null }).catch(() => {});
+  // ─── Session persistence ─────────────────────────────────────
+  const SESSION_KEY = 'bardak_session';
+
+  function saveSession() {
+    if (mp.roomCode && mp.uid) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ roomCode: mp.roomCode, uid: mp.uid }));
+    }
+  }
+
+  function clearSession() {
+    localStorage.removeItem(SESSION_KEY);
+  }
+
+  async function reconnect(roomCode) {
+    try {
+      const database = getDb();
+      const roomRef = doc(database, 'rooms', roomCode);
+      const roomDoc = await getDoc(roomRef);
+      if (!roomDoc.exists()) { clearSession(); return null; }
+      const data = roomDoc.data();
+      if (data.status === 'finished') { clearSession(); return null; }
+      const players = data.players || [];
+      const me = players.find(p => p.uid === mp.uid);
+      if (!me) { clearSession(); return null; }
+
+      mp.roomCode = roomCode;
+      mp.seatIndex = me.seatIndex;
+      mp.isHost = (data.hostUid === mp.uid);
+      mp.roomRef = roomRef;
+      mp.enabled = true;
+
+      if (mp.isHost) {
+        await updateDoc(mp.roomRef, { hostLastSeen: Date.now() });
+        startHeartbeat();
       }
-    });
+      listenRoom();
+
+      if (data.status === 'lobby') {
+        return { type: 'waiting', roomData: data };
+      } else if (data.status === 'playing') {
+        return { type: 'game', gameState: data.gameState || null };
+      }
+      clearSession();
+      return null;
+    } catch (e) {
+      console.warn('[mp] reconnect failed:', e.message);
+      clearSession();
+      return null;
+    }
   }
 
   return {
@@ -461,6 +506,7 @@ export function createMultiplayer(callbacks = {}) {
     mpAction,
     syncState,
     markGameOver,
+    reconnect,
     startBrowsing,
     stopBrowsing,
     reset,
