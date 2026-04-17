@@ -224,7 +224,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
       if (!G.attackDone && leftThrowerIdx() === hi) return true;
       if (G.attackDone && G.rightNeighborThrowing && rightNeighborOfDefender() === hi) return true;
     }
-    if (G.phase === 'defense' && G.defenderIdx === hi && !G.transferThrowPhase) return true;
+    if (G.phase === 'defense' && G.defenderIdx === hi) return true;
     if (G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length > 0 && G.nakiGiveToHandPending[0] === hi) return true;
     if (G.phase === 'nakidyvanie' && G.nakiGiveToHandPending.length === 0 && G.nakiPending.length > 0 && G.nakiPending[0] === hi) return true;
     return false;
@@ -660,7 +660,12 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
     removeFromHand(defenderIdx, defenseCard);
     addLog(`${G.players[defenderIdx].name} отбивает ${cardStr(pair.attack)} → ${cardStr(defenseCard)}`, 'defense');
     revealSecretIfNeeded(defenderIdx);
-    if (allBeaten()) G.phase = 'attack';
+    if (allBeaten()) {
+      G.phase = 'attack';
+      G.transferThrowPhase = false;
+      G.transferThrowQueue = [];
+      G.transferThrowNominal = null;
+    }
     notify();
     scheduleBot();
     return true;
@@ -675,6 +680,11 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
     G.defenderIdx = newDefender;
     addLog(`Теперь защищается: ${G.players[newDefender].name}`, 'transfer');
     G.phase = 'defense';
+
+    // Cancel any previous transfer throw phase (new transfer supersedes it)
+    G.transferThrowPhase = false;
+    G.transferThrowQueue = [];
+    G.transferThrowNominal = null;
 
     // Check if transferrer has more cards of same nominal to throw immediately
     const transferredNominal = cardNominal(card);
@@ -720,6 +730,10 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
 
   function doTake(defenderIdx) {
     addLog(`${G.players[defenderIdx].name} берёт карты`, 'take');
+    // Cancel any pending transfer throw — defender chose to take
+    G.transferThrowPhase = false;
+    G.transferThrowQueue = [];
+    G.transferThrowNominal = null;
     G.nakiDecisiveIdx = findDecisiveCard();
     const hi = humanPlayerIdx();
     if (defenderIdx === hi) G.humanJustTook = true;
@@ -808,6 +822,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
 
   function declareAttackDone(playerIdx) {
     if (playerIdx !== leftThrowerIdx()) return;
+    // Guard against stale multiplayer actions arriving after the round ended
+    if (G.tablePairs.length === 0 && !G.defenderTaking) return;
     if (!G.attackDone) {
       G.attackDone = true;
       addLog(`${G.players[playerIdx].name} завершает атаку`, 'system');
@@ -833,6 +849,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
   }
 
   function doRightNeighborPass(playerIdx) {
+    // Guard against stale multiplayer actions arriving after the round ended
+    if (G.tablePairs.length === 0 && !G.defenderTaking) return;
     addLog(`${G.players[playerIdx].name} пас (правый сосед)`, 'system');
     G.rightNeighborThrowing = false;
     if (G.defenderTaking) {
@@ -852,6 +870,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
       setupNakidyvanie(G.defenderIdx);
       return;
     }
+    // Safety: if table is empty there's nothing to resolve (stale action guard)
+    if (G.tablePairs.length === 0) return;
     if (hasUnbeaten()) {
       G.phase = 'defense';
       notify();
@@ -864,7 +884,7 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
       discardPauseTimer = setTimeout(() => {
         discardPauseTimer = null;
         if (G && G.phase === 'discard_pause') doDiscard();
-      }, 2500);
+      }, 1700);
     }
   }
 
@@ -1007,6 +1027,8 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
   }
 
   function doNakiPass(playerIdx) {
+    // Guard against stale multiplayer actions arriving after nakidyvanie ended
+    if (G.phase !== 'nakidyvanie') return;
     G.nakiPending = G.nakiPending.filter(i => i !== playerIdx);
     if (G.nakiPending.length === 0) afterNakiPending();
     else { notify(); scheduleBot(); }
@@ -1152,10 +1174,9 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
 
     if (G.dicePhase) return; // UI animates dice, nothing for bots to do
     if (G.phase === 'deal' || G.phase === 'draw' || G.phase === 'roundover' || G.phase === 'dice') return;
-    if (isHumanTurn()) return;
-    undoState = null;
 
-    // Handle transfer-throw phase (bot immediately throws or passes)
+    // Handle transfer-throw phase BEFORE isHumanTurn check so bot can throw
+    // even when the new defender is human (both can act simultaneously)
     if (G.transferThrowPhase && G.transferThrowQueue.length > 0) {
       const throwerIdx = G.transferThrowQueue[0];
       if (G.players[throwerIdx] && G.players[throwerIdx].isBot) {
@@ -1166,9 +1187,17 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
         } else {
           setTimeout(() => { if (G.transferThrowPhase) doTransferThrowPass(throwerIdx); }, BOT_DELAY / 2);
         }
+        return;
       }
-      return;
+      // Human is the thrower — allow bot defender to proceed below
     }
+
+    // When human is only the transfer thrower (not the defender), don't block bot defender
+    const humanIsOnlyThrower = G.transferThrowPhase
+      && G.transferThrowQueue.length > 0
+      && G.transferThrowQueue[0] === humanPlayerIdx();
+    if (!humanIsOnlyThrower && isHumanTurn()) return;
+    undoState = null;
 
     const phase = G.phase;
     if (phase === 'attack') {
