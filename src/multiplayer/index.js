@@ -79,6 +79,7 @@ export function createMultiplayer(callbacks = {}) {
     roomCode: null,
     seatIndex: null,
     isHost: false,
+    spectating: false, // true while waiting to join a mid-game room
     roomRef: null,
     unsubscribe: null,
     processingAction: false,
@@ -88,6 +89,7 @@ export function createMultiplayer(callbacks = {}) {
   let heartbeatInterval = null;
   let roomsUnsubscribe = null;
   let engineRef = null; // set via setEngine()
+  let processedPendingUids = new Set(); // track which pending players have been passed to engine
 
   function setEngine(engine) {
     engineRef = engine;
@@ -152,8 +154,35 @@ export function createMultiplayer(callbacks = {}) {
       const roomDoc = await getDoc(roomRef);
       if (!roomDoc.exists()) throw new Error('Комната не найдена: ' + code);
       const data = roomDoc.data();
-      if (data.status !== 'lobby') throw new Error('Игра уже началась или завершена.');
+      if (data.status === 'finished') throw new Error('Игра уже завершена.');
+
       const players = data.players || [];
+      const pendingPlayers = data.pendingPlayers || [];
+
+      // ── Game already started — join as spectator (pending player) ──
+      if (data.status === 'playing') {
+        // Check if already pending
+        let mePending = pendingPlayers.find(p => p.uid === mp.uid);
+        let seatIndex;
+        if (mePending) {
+          seatIndex = mePending.seatIndex;
+        } else {
+          seatIndex = players.length + pendingPlayers.length;
+          const updated = [...pendingPlayers, { uid: mp.uid, name: escHtml(playerName || 'Игрок'), seatIndex }];
+          await updateDoc(roomRef, { pendingPlayers: updated });
+        }
+        mp.roomCode = code.toUpperCase();
+        mp.isHost = false;
+        mp.seatIndex = seatIndex;
+        mp.spectating = true;
+        mp.roomRef = roomRef;
+        mp.enabled = true;
+        listenRoom();
+        saveSession();
+        return { type: 'spectating', code: mp.roomCode, seatIndex, gameState: data.gameState || null };
+      }
+
+      // ── Normal lobby join ──────────────────────────────────────
       if (players.length >= data.maxPlayers) throw new Error('Комната заполнена.');
       let existingIdx = players.findIndex(p => p.uid === mp.uid);
       let seatIndex;
@@ -169,10 +198,11 @@ export function createMultiplayer(callbacks = {}) {
       mp.roomCode = code.toUpperCase();
       mp.isHost = false;
       mp.seatIndex = seatIndex;
+      mp.spectating = false;
       mp.roomRef = roomRef;
       listenRoom();
       saveSession();
-      return { code: mp.roomCode, isHost: false, seatIndex };
+      return { type: 'waiting', code: mp.roomCode, isHost: false, seatIndex };
     } catch (e) {
       throw new Error(e.message);
     }
@@ -187,6 +217,15 @@ export function createMultiplayer(callbacks = {}) {
         if (onRoomUpdate) onRoomUpdate(data);
       } else if (data.status === 'playing') {
         if (mp.isHost) {
+          // Pass any new pending players to the engine (they'll enter at next round)
+          if (data.pendingPlayers?.length > 0 && engineRef) {
+            for (const pp of data.pendingPlayers) {
+              if (!processedPendingUids.has(pp.uid)) {
+                processedPendingUids.add(pp.uid);
+                engineRef.addPendingPlayer({ name: pp.name, seatIndex: pp.seatIndex, uid: pp.uid });
+              }
+            }
+          }
           if (data.pendingAction && !mp.processingAction) {
             mp.processingAction = true;
             handlePendingAction(data.pendingAction);
@@ -409,6 +448,29 @@ export function createMultiplayer(callbacks = {}) {
     if (roomsUnsubscribe) { roomsUnsubscribe(); roomsUnsubscribe = null; }
   }
 
+  // Called by host when engine activates pending players at round boundary.
+  // Updates room.players and clears room.pendingPlayers so spectators see their new seat.
+  async function syncActivatedPlayers(activatedPlayers) {
+    if (!mp.roomRef || !mp.isHost || !activatedPlayers?.length) return;
+    try {
+      const roomDoc = await getDoc(mp.roomRef);
+      if (!roomDoc.exists()) return;
+      const data = roomDoc.data();
+      const existing = data.players || [];
+      const newEntries = activatedPlayers.map(ap => ({
+        uid: ap.uid || null,
+        name: ap.name,
+        seatIndex: ap.seatIndex,
+      }));
+      await updateDoc(mp.roomRef, {
+        players: [...existing, ...newEntries],
+        pendingPlayers: [],
+      });
+    } catch (e) {
+      console.error('[mp] syncActivatedPlayers error:', e);
+    }
+  }
+
   function reset() {
     stopHeartbeat();
     if (mp.unsubscribe) { mp.unsubscribe(); mp.unsubscribe = null; }
@@ -427,12 +489,14 @@ export function createMultiplayer(callbacks = {}) {
       }
     }
     mp.enabled = false;
+    mp.spectating = false;
     mp.roomCode = null;
     mp.seatIndex = null;
     mp.isHost = false;
     mp.roomRef = null;
     mp.processingAction = false;
     mp.logRenderedCount = 0;
+    processedPendingUids = new Set();
     clearSession();
     if (onReset) onReset();
     startBrowsing();
@@ -459,13 +523,17 @@ export function createMultiplayer(callbacks = {}) {
       if (!roomDoc.exists()) { clearSession(); return null; }
       const data = roomDoc.data();
       if (data.status === 'finished') { clearSession(); return null; }
+
       const players = data.players || [];
+      const pendingPlayers = data.pendingPlayers || [];
       const me = players.find(p => p.uid === mp.uid);
-      if (!me) { clearSession(); return null; }
+      const mePending = pendingPlayers.find(p => p.uid === mp.uid);
+      if (!me && !mePending) { clearSession(); return null; }
 
       mp.roomCode = roomCode;
-      mp.seatIndex = me.seatIndex;
+      mp.seatIndex = me ? me.seatIndex : mePending.seatIndex;
       mp.isHost = (data.hostUid === mp.uid);
+      mp.spectating = !me && !!mePending;
       mp.roomRef = roomRef;
       mp.enabled = true;
 
@@ -478,6 +546,9 @@ export function createMultiplayer(callbacks = {}) {
       if (data.status === 'lobby') {
         return { type: 'waiting', roomData: data };
       } else if (data.status === 'playing') {
+        if (mp.spectating) {
+          return { type: 'spectating', gameState: data.gameState || null };
+        }
         return { type: 'game', gameState: data.gameState || null };
       }
       clearSession();
@@ -494,7 +565,9 @@ export function createMultiplayer(callbacks = {}) {
     getSeatIndex: () => mp.seatIndex,
     isEnabled: () => mp.enabled,
     isHost: () => mp.isHost,
+    isSpectating: () => mp.spectating,
     setEnabled: (val) => { mp.enabled = val; },
+    setSpectating: (val) => { mp.spectating = val; },
     // Устанавливает Firebase UID как основной идентификатор игрока
     setUid: (uid) => { if (uid) mp.uid = uid; },
     setEngine,
@@ -505,6 +578,7 @@ export function createMultiplayer(callbacks = {}) {
     reorderPlayers,
     mpAction,
     syncState,
+    syncActivatedPlayers,
     markGameOver,
     reconnect,
     startBrowsing,

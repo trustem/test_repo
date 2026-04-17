@@ -128,6 +128,7 @@ export function newGameState(playerDefs) {
     trumpChoicePhase: false,
     trumpChooserIdx: -1,
     pendingDiceAfterDraw: false,
+    pendingPlayers: [], // players waiting to join at next round boundary
   };
 }
 
@@ -136,7 +137,8 @@ export function newGameState(playerDefs) {
 // onUpdate(G, UI, logEntry?) is called after every state change.
 // onGameOver(G) is called when game ends.
 // onLog(msg, type) is called for each new log entry.
-export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpActionHandler }) {
+// onPlayersActivated(activatedPlayers) called when pending players enter the game.
+export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpActionHandler, onPlayersActivated }) {
   let G = null;
   let UI = { selectedCards: [], selectedAttackPairIdx: null };
   let undoState = null;
@@ -165,6 +167,14 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
 
   function activePlayers() {
     return G.players.filter(p => !p.exited);
+  }
+
+  function medianScoreFloor(players) {
+    const scores = players.map(p => p.score).sort((a, b) => a - b);
+    if (!scores.length) return 0;
+    const mid = Math.floor(scores.length / 2);
+    if (scores.length % 2 === 1) return scores[mid];
+    return Math.floor((scores[mid - 1] + scores[mid]) / 2);
   }
 
   function nextActiveIdx(fromIdx, skipIdx = null) {
@@ -531,6 +541,31 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
     G.trumpChoicePhase = false;
     G.trumpChooserIdx = -1;
     G.pendingDiceAfterDraw = false;
+
+    // ── Activate pending mid-game joiners ────────────────────────
+    if (G.pendingPlayers && G.pendingPlayers.length > 0) {
+      const entryScore = medianScoreFloor(G.players);
+      const toActivate = G.pendingPlayers.slice();
+      G.pendingPlayers = [];
+      for (const pp of toActivate) {
+        G.players.push({
+          id: pp.seatIndex,
+          name: pp.name,
+          isBot: false,
+          hand: [],
+          secretCard: null,
+          secretTaken: false,
+          secretRevealed: false,
+          score: entryScore,
+          exited: false,
+          exitOrder: null,
+          nakiCards: [],
+          nakiDisplayCards: [],
+        });
+        addLog(`${pp.name} входит в игру со счётом ${SCORE_LADDER[entryScore]}`, 'system');
+      }
+      if (onPlayersActivated) onPlayersActivated(toActivate);
+    }
 
     G.players.forEach(p => {
       p.hand = [];
@@ -1513,6 +1548,13 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
     doNakiPass: (playerIdx) => execAction('nakiPass', { playerIdx }, () => { doNakiPass(playerIdx); }),
     doNakiGiveToHand: (throwerIdx, cards) => execAction('nakiGiveToHand', { playerIdx: throwerIdx, cardIds: cards.map(c => c.id) }, () => { saveUndoState(); doNakiGiveToHand(throwerIdx, cards); }),
     doNakiGiveToHandPass: (throwerIdx) => execAction('nakiGiveToHandPass', { playerIdx: throwerIdx }, () => { doNakiGiveToHandPass(throwerIdx); }),
+    addPendingPlayer: ({ name, seatIndex, uid }) => {
+      if (!G) return;
+      if (!G.pendingPlayers) G.pendingPlayers = [];
+      if (!G.pendingPlayers.find(p => p.seatIndex === seatIndex)) {
+        G.pendingPlayers.push({ name, seatIndex, uid: uid || null });
+      }
+    },
     humanCardClick,
     selectAttackPair,
     hasUndoState,

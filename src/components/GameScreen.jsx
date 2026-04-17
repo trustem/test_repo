@@ -74,7 +74,7 @@ const PHASES_RU = {
   gameover: 'Игра окончена',
 };
 
-export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGame }) {
+export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGame, spectatorMode = false }) {
   const [logVisible, setLogVisible] = useState(false);
   const [debugMode, setDebugModeState] = useState(false);
   const [showUndo, setShowUndo] = useState(false);
@@ -433,6 +433,15 @@ export default function GameScreen({ G, UI, logEntries, engine, mpState, onNewGa
                 Не отменять
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Spectator overlay */}
+      {spectatorMode && (
+        <div className="spectator-overlay">
+          <div className="spectator-banner">
+            Вы наблюдаете — войдёте в игру после окончания раунда
           </div>
         </div>
       )}

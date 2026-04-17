@@ -78,6 +78,9 @@ export default function App() {
         if (mpRef.current) mpRef.current.mpAction(type, payload, localFn);
         else localFn();
       },
+      onPlayersActivated: (activatedPlayers) => {
+        mpRef.current?.syncActivatedPlayers(activatedPlayers);
+      },
       onUpdate: (G, UI) => {
         setGameState({ ...G });
         setUiState({ ...UI });
@@ -127,6 +130,14 @@ export default function App() {
             const result = getPlayerResult(state, seatIndex);
             if (result) saveGameStats(uid, result);
           }
+        } else if (mpRef.current?.isSpectating()) {
+          // Spectator: check if we've been added to G.players (activated at round boundary)
+          const seatIndex = mpRef.current?.getSeatIndex();
+          if (seatIndex != null && state.players?.[seatIndex]) {
+            mpRef.current.setSpectating(false);
+            setScreen('game');
+          }
+          // else stay on spectating screen, just update the game state view
         } else {
           setScreen('game');
         }
@@ -175,6 +186,13 @@ export default function App() {
               mpRef.current.setEnabled(true);
             }
             setScreen('game');
+          } else if (result?.type === 'spectating') {
+            if (result.gameState) {
+              engineRef.current?.loadState(result.gameState);
+              setGameState({ ...result.gameState });
+            }
+            setMpState(mpRef.current.getState());
+            setScreen('spectating');
           }
         } catch (e) {
           console.warn('[app] session reconnect error:', e.message);
@@ -231,9 +249,17 @@ export default function App() {
     try {
       mpRef.current?.stopBrowsing();
       saveUserName(firebaseUidRef.current, playerName);
-      await withTimeout(mpRef.current.joinRoom(code, playerName));
+      const result = await withTimeout(mpRef.current.joinRoom(code, playerName));
       setMpState(mpRef.current.getState());
-      setScreen('waiting');
+      if (result?.type === 'spectating') {
+        if (result.gameState) {
+          engineRef.current?.loadState(result.gameState);
+          setGameState({ ...result.gameState });
+        }
+        setScreen('spectating');
+      } else {
+        setScreen('waiting');
+      }
     } catch (e) { setLobbyError(e.message); }
   }, []);
 
@@ -332,6 +358,25 @@ export default function App() {
           onBack={goLobby}
         />
       )}
+      {screen === 'spectating' && gameState && (
+        <GameScreen
+          G={gameState}
+          UI={uiState}
+          logEntries={logEntries}
+          engine={engine}
+          mpState={mpState}
+          onNewGame={goLobby}
+          spectatorMode={true}
+        />
+      )}
+      {screen === 'spectating' && !gameState && (
+        <div className="loading-screen">
+          <div className="loading-title">Бардак</div>
+          <div className="loading-spinner">⟳</div>
+          <div style={{ color: '#aaa', marginTop: 12, fontSize: '0.9rem' }}>Ожидание следующего раунда...</div>
+        </div>
+      )}
+
       {screen === 'game' && gameState && (
         <GameScreen
           G={gameState}
