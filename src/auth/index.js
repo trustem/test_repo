@@ -59,17 +59,21 @@ function ensureApp() {
   return getApp();
 }
 
-// Returns Auth instance, using localStorage persistence (reliable in WKWebView/Capacitor).
-// IndexedDB (Firebase's default) can hang indefinitely in iOS WKWebView.
+// Returns Auth instance.
+// On Capacitor native (iOS WKWebView): use localStorage persistence — IndexedDB hangs there.
+// On web: use getAuth() which auto-configures IndexedDB + browserPopupRedirectResolver.
 function ensureAuth(app) {
-  try {
-    return initializeAuth(app, {
-      persistence: browserLocalPersistence,
-      popupRedirectResolver: browserPopupRedirectResolver,
-    });
-  } catch {
-    return getAuth(app);
+  if (isCapacitorNative()) {
+    try {
+      return initializeAuth(app, {
+        persistence: browserLocalPersistence,
+        popupRedirectResolver: browserPopupRedirectResolver,
+      });
+    } catch {
+      return getAuth(app);
+    }
   }
+  return getAuth(app);
 }
 
 // ─── Main: init auth ──────────────────────────────────────────
