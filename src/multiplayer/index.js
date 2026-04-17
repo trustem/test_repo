@@ -107,6 +107,8 @@ export function createMultiplayer(callbacks = {}) {
   let engineRef = null; // set via setEngine()
   let processedPendingUids = new Set(); // track which pending players have been passed to engine
   let activeJoinRequest = null;   // request currently shown to host (null = clear to show next)
+  let autoEndTimer = null;        // fires if all non-host players go absent for 60s
+  let roomPlayersCache = [];      // last-known players array from Firestore (for host absence check)
 
   function setEngine(engine) {
     engineRef = engine;
@@ -115,8 +117,11 @@ export function createMultiplayer(callbacks = {}) {
   function startHeartbeat() {
     stopHeartbeat();
     heartbeatInterval = setInterval(() => {
-      if (mp.isHost && mp.roomRef) {
+      if (!mp.roomRef) return;
+      if (mp.isHost) {
         updateDoc(mp.roomRef, { hostLastSeen: Date.now() }).catch(() => {});
+      } else if (mp.enabled) {
+        updateDoc(mp.roomRef, { [`playerLastSeen.${mp.uid}`]: Date.now() }).catch(() => {});
       }
     }, 20000);
   }
@@ -125,6 +130,10 @@ export function createMultiplayer(callbacks = {}) {
     if (heartbeatInterval) {
       clearInterval(heartbeatInterval);
       heartbeatInterval = null;
+    }
+    if (autoEndTimer) {
+      clearTimeout(autoEndTimer);
+      autoEndTimer = null;
     }
   }
 
@@ -194,6 +203,8 @@ export function createMultiplayer(callbacks = {}) {
         mp.spectating = true;
         mp.roomRef = roomRef;
         mp.enabled = true;
+        updateDoc(roomRef, { [`playerLastSeen.${mp.uid}`]: Date.now() }).catch(() => {});
+        startHeartbeat();
         listenRoom();
         saveSession();
         return { type: 'spectating', code: mp.roomCode, seatIndex, gameState: data.gameState || null };
@@ -217,6 +228,8 @@ export function createMultiplayer(callbacks = {}) {
       mp.seatIndex = seatIndex;
       mp.spectating = false;
       mp.roomRef = roomRef;
+      updateDoc(roomRef, { [`playerLastSeen.${mp.uid}`]: Date.now() }).catch(() => {});
+      startHeartbeat();
       listenRoom();
       saveSession();
       return { type: 'waiting', code: mp.roomCode, isHost: false, seatIndex };
@@ -254,6 +267,39 @@ export function createMultiplayer(callbacks = {}) {
           if (data.pendingAction && !mp.processingAction) {
             mp.processingAction = true;
             handlePendingAction(data.pendingAction);
+          }
+
+          // ── Auto-end: all real non-host players absent for 60s ──
+          {
+            const realNonHostPlayers = (data.players || []).filter(p =>
+              !p.isBot && p.uid !== data.hostUid
+            );
+            const playerLastSeen = data.playerLastSeen || {};
+            const now = Date.now();
+            const ABSENCE_MS = 90 * 1000; // 90s considered absent
+            const allAbsent = realNonHostPlayers.length > 0 &&
+              realNonHostPlayers.every(p => {
+                const last = playerLastSeen[p.uid];
+                return last !== undefined && (now - last) > ABSENCE_MS;
+              });
+            if (allAbsent) {
+              if (!autoEndTimer) {
+                autoEndTimer = setTimeout(() => {
+                  autoEndTimer = null;
+                  if (mp.roomRef) {
+                    updateDoc(mp.roomRef, {
+                      status: 'finished', gameState: null, autoEnded: true,
+                    }).catch(() => {});
+                  }
+                  if (onReset) onReset();
+                }, 60 * 1000);
+              }
+            } else {
+              if (autoEndTimer) {
+                clearTimeout(autoEndTimer);
+                autoEndTimer = null;
+              }
+            }
           }
         } else {
           if (data.gameState && onGameStateUpdate) {
@@ -548,6 +594,10 @@ export function createMultiplayer(callbacks = {}) {
     mp.isHost = false;
     mp.spectating = true;
     mp.enabled = true;
+    if (mp.roomRef) {
+      updateDoc(mp.roomRef, { [`playerLastSeen.${mp.uid}`]: Date.now() }).catch(() => {});
+    }
+    startHeartbeat();
     listenRoom(); // switch from joinRequest listener to full room listener
     saveSession();
     if (onJoinApproved) onJoinApproved(roomData.gameState || null);
@@ -628,7 +678,7 @@ export function createMultiplayer(callbacks = {}) {
   }
 
   function reset() {
-    stopHeartbeat();
+    stopHeartbeat(); // also clears autoEndTimer
     if (mp.unsubscribe) { mp.unsubscribe(); mp.unsubscribe = null; }
     if (mp.roomRef) {
       if (mp.isHost) {
@@ -636,6 +686,10 @@ export function createMultiplayer(callbacks = {}) {
       } else {
         const ref = mp.roomRef;
         const uid = mp.uid;
+        // Signal immediate departure so host's auto-end can fire sooner
+        if (uid) {
+          updateDoc(ref, { [`playerLastSeen.${uid}`]: 0 }).catch(() => {});
+        }
         getDoc(ref).then(docSnap => {
           if (docSnap.exists() && docSnap.data().status === 'lobby') {
             const players = (docSnap.data().players || []).filter(p => p.uid !== uid);
@@ -696,6 +750,14 @@ export function createMultiplayer(callbacks = {}) {
       }
       if (!me && !mePending) { clearSession(); return null; }
 
+      // Reject reconnect to stale playing games (host gone > 5 min)
+      const STALE_HOST_MS = 5 * 60 * 1000;
+      if (data.status === 'playing' && data.hostLastSeen &&
+          (Date.now() - data.hostLastSeen) > STALE_HOST_MS) {
+        clearSession();
+        return null;
+      }
+
       // Ensure mp.uid reflects the uid actually stored in this room
       if (effectiveUid) mp.uid = effectiveUid;
 
@@ -708,6 +770,9 @@ export function createMultiplayer(callbacks = {}) {
 
       if (mp.isHost) {
         await updateDoc(mp.roomRef, { hostLastSeen: Date.now() });
+        startHeartbeat();
+      } else {
+        updateDoc(mp.roomRef, { [`playerLastSeen.${mp.uid}`]: Date.now() }).catch(() => {});
         startHeartbeat();
       }
       listenRoom();
