@@ -8,6 +8,15 @@
 /* ─── RESET ──────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ─── DISABLE TEXT SELECTION & iOS LOUPE ───────────────────────────── */
+/* Prevents text selection highlight in browsers and the magnifying glass
+   loupe on long-press in iOS WKWebView (Capacitor) */
+* {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none; /* disables iOS callout (copy/paste menu) on long press */
+}
+
 /* ─── DESIGN TOKENS ─────────────────────────────────────────────────── */
 :root {
   /* Safe areas (browser chrome / iOS notch) */
