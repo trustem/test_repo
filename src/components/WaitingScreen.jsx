@@ -182,7 +182,7 @@ export default function WaitingScreen({ data, mpState, onStartGame, onReorderPla
 
         <button
           className="start-button"
-          style={{ background: 'rgba(0,0,0,.35)', border: '1px solid rgba(80,140,220,.2)', marginTop: 14 }}
+          style={{ background: '#555', marginTop: 14 }}
           onClick={onBack}
         >
           ← Назад
