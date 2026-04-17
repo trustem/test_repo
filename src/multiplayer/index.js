@@ -683,13 +683,25 @@ export function createMultiplayer(callbacks = {}) {
 
       const players = data.players || [];
       const pendingPlayers = data.pendingPlayers || [];
-      const me = players.find(p => p.uid === mp.uid);
-      const mePending = pendingPlayers.find(p => p.uid === mp.uid);
+
+      // Try Firebase uid first, then fallback uid (backward compat with sessions
+      // created before the uid-stability fix — old rooms used mpGetUid() fallback)
+      const fallbackUid = localStorage.getItem('bardak_uid_fallback');
+      const candidateUids = [mp.uid, fallbackUid].filter(Boolean);
+      let me = null, mePending = null, effectiveUid = null;
+      for (const uid of candidateUids) {
+        me = players.find(p => p.uid === uid);
+        mePending = pendingPlayers.find(p => p.uid === uid);
+        if (me || mePending) { effectiveUid = uid; break; }
+      }
       if (!me && !mePending) { clearSession(); return null; }
+
+      // Ensure mp.uid reflects the uid actually stored in this room
+      if (effectiveUid) mp.uid = effectiveUid;
 
       mp.roomCode = roomCode;
       mp.seatIndex = me ? me.seatIndex : mePending.seatIndex;
-      mp.isHost = (data.hostUid === mp.uid);
+      mp.isHost = (data.hostUid === effectiveUid);
       mp.spectating = !me && !!mePending;
       mp.roomRef = roomRef;
       mp.enabled = true;
