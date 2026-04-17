@@ -200,9 +200,10 @@ export default function App() {
             engineRef.current?.loadState(result.gameState);
             setGameState({ ...result.gameState });
             setMpState(mpRef.current.getState());
-            // Host needs engine running — non-host just receives state via listenRoom
             if (mpRef.current.isHost()) {
               mpRef.current.setEnabled(true);
+              // Restart bot timers — they're not persisted in Firestore
+              engineRef.current?.resumeGame();
             }
             setScreen('game');
           } else if (result?.type === 'spectating') {

@@ -1510,6 +1510,12 @@ export function createEngine({ onUpdate, onGameOver, onLog, getMpSeatIndex, mpAc
     // For multiplayer non-host: sync engine's internal G with Firestore state
     // so engine helper methods (isHumanTurn, leftThrowerIdx, etc.) work correctly
     loadState(state) { G = state ? { ...state } : null; },
+    // For host reconnect: resume game after loadState — re-renders UI and restarts bot timers
+    resumeGame() {
+      if (!G || G.gameOver) return;
+      notify();
+      scheduleBot();
+    },
     getUI() { return { ...UI }; },
     humanPlayerIdx,
     isHumanTurn,
