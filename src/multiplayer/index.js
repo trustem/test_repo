@@ -131,7 +131,7 @@ export function createMultiplayer(callbacks = {}) {
   async function createRoom(hostName, maxPlayers = 4) {
     try {
       const database = getDb();
-      mp.uid = mpGetUid();
+      if (!mp.uid) mp.uid = mpGetUid();
       let code = mpGenCode();
       let attempts = 0;
       while (attempts < 10) {
@@ -166,7 +166,7 @@ export function createMultiplayer(callbacks = {}) {
   async function joinRoom(code, playerName) {
     try {
       const database = getDb();
-      mp.uid = mpGetUid();
+      if (!mp.uid) mp.uid = mpGetUid();
       const roomRef = doc(database, 'rooms', code.toUpperCase());
       const roomDoc = await getDoc(roomRef);
       if (!roomDoc.exists()) throw new Error('Комната не найдена: ' + code);
