@@ -10,6 +10,7 @@ import GameOverScreen from './components/GameOverScreen';
 import RulesScreen from './components/RulesScreen';
 import ProfileModal from './components/ProfileModal';
 import LeaderboardModal from './components/LeaderboardModal';
+import JoinRequestNotification from './components/JoinRequestNotification';
 
 // ─── Compute a player's game result from G ───────────────────
 // Returns { playerCount, rank, points, isWin } or null if bot/invalid
@@ -59,6 +60,9 @@ export default function App() {
   const [lobbyError, setLobbyError] = useState(null);
   const [waitingData, setWaitingData]   = useState(null);
   const [gameOverData, setGameOverData] = useState(null);
+  const [pendingJoinRequest, setPendingJoinRequest] = useState(null); // host: request to approve/reject
+  const [joinRequestStatus, setJoinRequestStatus]   = useState(null); // player: null|'pending'|'rejected'|'blocked'
+  const [joinRejectedAttemptsLeft, setJoinRejectedAttemptsLeft] = useState(0);
 
   const engineRef = useRef(null);
   const mpRef     = useRef(null);
@@ -148,6 +152,21 @@ export default function App() {
         setMpState({ enabled: false, isHost: false, seatIndex: null, roomCode: null });
       },
       onLog: handleLog,
+      onJoinRequest: (request) => setPendingJoinRequest(request),
+      onJoinApproved: (gameState) => {
+        setJoinRequestStatus(null);
+        if (gameState) {
+          engineRef.current?.loadState(gameState);
+          setGameState({ ...gameState });
+        }
+        setMpState(mpRef.current.getState());
+        setScreen('spectating');
+      },
+      onJoinRejected: (attemptsLeft) => {
+        setJoinRejectedAttemptsLeft(attemptsLeft);
+        setJoinRequestStatus(attemptsLeft <= 0 ? 'blocked' : 'rejected');
+        mpRef.current?.startBrowsing();
+      },
     });
   }
 
@@ -263,6 +282,40 @@ export default function App() {
     } catch (e) { setLobbyError(e.message); }
   }, []);
 
+  const handleRequestJoin = useCallback(async (code, playerName) => {
+    setLobbyError(null);
+    try {
+      mpRef.current?.stopBrowsing();
+      saveUserName(firebaseUidRef.current, playerName);
+      await withTimeout(mpRef.current.requestJoin(code, playerName));
+      setMpState(mpRef.current.getState());
+      setJoinRequestStatus('pending');
+    } catch (e) {
+      mpRef.current?.startBrowsing();
+      if (e.message === 'BLOCKED') {
+        setLobbyError('Хост уже отказал вам 2 раза — вы не можете войти в эту игру.');
+      } else {
+        setLobbyError(e.message);
+      }
+    }
+  }, []);
+
+  const handleApproveJoin = useCallback(async (request) => {
+    setPendingJoinRequest(null);
+    await mpRef.current?.approveJoinRequest(request);
+  }, []);
+
+  const handleRejectJoin = useCallback(async (request) => {
+    setPendingJoinRequest(null);
+    await mpRef.current?.rejectJoinRequest(request);
+  }, []);
+
+  const handleCancelJoinRequest = useCallback(async () => {
+    setJoinRequestStatus(null);
+    await mpRef.current?.cancelJoinRequest();
+    mpRef.current?.startBrowsing();
+  }, []);
+
   const handleReorderPlayers = useCallback(async (newOrder) => {
     try {
       await mpRef.current.reorderPlayers(newOrder);
@@ -316,12 +369,26 @@ export default function App() {
           userProfile={userProfile}
           error={lobbyError}
           onErrorDismiss={() => setLobbyError(null)}
+          joinRequestStatus={joinRequestStatus}
+          joinRejectedAttemptsLeft={joinRejectedAttemptsLeft}
+          onJoinRequestDismiss={() => setJoinRequestStatus(null)}
+          onCancelJoinRequest={handleCancelJoinRequest}
           onSolo={goSetup}
           onCreateRoom={handleCreateRoom}
           onJoinRoom={handleJoinRoom}
+          onRequestJoin={handleRequestJoin}
           onRules={() => setShowRules(true)}
           onProfile={() => setShowProfile(true)}
           onLeaderboard={() => setShowLeaderboard(true)}
+        />
+      )}
+
+      {/* Host: incoming join request notification */}
+      {pendingJoinRequest && (
+        <JoinRequestNotification
+          request={pendingJoinRequest}
+          onApprove={handleApproveJoin}
+          onReject={handleRejectJoin}
         />
       )}
 

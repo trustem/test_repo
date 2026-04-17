@@ -1603,6 +1603,73 @@ html, body, #root {
 .room-join-btn:hover   { filter: brightness(1.12); transform: translateY(-1px); }
 .room-join-btn:disabled { background: rgba(0,0,0,.4); color: var(--text-muted); cursor: not-allowed; filter: none; transform: none; box-shadow: none; }
 
+/* Playing room */
+.room-item.room-playing { border-color: rgba(255, 180, 40, 0.3); background: rgba(255, 160, 0, 0.06); }
+.room-item-playing-badge {
+  background: rgba(200, 120, 0, 0.7); color: #ffe0a0;
+  border-radius: 5px; padding: 1px 7px; font-size: .7rem; font-weight: 700;
+  letter-spacing: .04em; flex-shrink: 0;
+}
+.room-request-btn {
+  background: linear-gradient(135deg, #7a4800, #c47800) !important;
+  box-shadow: 0 3px 10px rgba(180, 120, 0, 0.4) !important;
+}
+
+/* Join request status banners (player side) */
+.join-req-status {
+  border-radius: var(--r); padding: 10px 14px; font-size: .85rem;
+  margin-bottom: 10px; text-align: center;
+  border: 1px solid transparent; cursor: pointer;
+}
+.join-req-status.pending {
+  background: rgba(20, 60, 120, 0.7); color: #c8deff;
+  border-color: rgba(80, 140, 220, 0.4);
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  cursor: default;
+}
+.join-req-cancel-btn {
+  background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.25);
+  color: #c8deff; border-radius: 6px; padding: 4px 10px;
+  font-size: .78rem; cursor: pointer; font-family: inherit; flex-shrink: 0;
+}
+.join-req-status.rejected {
+  background: rgba(160, 80, 0, 0.7); color: #ffe0a0;
+  border-color: rgba(220, 140, 0, 0.4);
+}
+.join-req-status.blocked {
+  background: rgba(140, 20, 20, 0.7); color: #ffc0c0;
+  border-color: rgba(200, 60, 60, 0.4);
+}
+
+/* Join request notification (host side) */
+.join-req-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 20px);
+  pointer-events: none;
+}
+.join-req-card {
+  background: rgba(15, 30, 60, 0.97);
+  border: 1px solid rgba(80, 140, 220, 0.5);
+  border-radius: 16px; padding: 18px 22px;
+  min-width: 260px; max-width: 340px; width: 90%;
+  text-align: center; pointer-events: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+}
+.join-req-title { color: var(--text-muted); font-size: .8rem; margin-bottom: 6px; letter-spacing: .06em; text-transform: uppercase; }
+.join-req-name  { color: #fff; font-size: 1.15rem; font-weight: 700; margin-bottom: 2px; }
+.join-req-hint  { color: var(--text-muted); font-size: .82rem; margin-bottom: 14px; }
+.join-req-buttons { display: flex; gap: 10px; justify-content: center; }
+.join-req-btn {
+  flex: 1; padding: 9px 0; border: none; border-radius: 10px;
+  font-size: .9rem; font-weight: 700; font-family: inherit;
+  cursor: pointer; transition: filter var(--t-sm);
+}
+.join-req-btn:hover { filter: brightness(1.12); }
+.join-req-approve { background: linear-gradient(135deg, #1a6e2e, #27ae60); color: #fff; }
+.join-req-reject  { background: rgba(180, 40, 40, 0.8); color: #fff; }
+
 .lobby-error-banner {
   background: rgba(180, 40, 40, 0.85);
   color: #fff;

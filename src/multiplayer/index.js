@@ -67,11 +67,27 @@ function mpGenCode() {
   return code;
 }
 
+// ─── Rejection tracking (localStorage) ───────────────────────
+const REJECTIONS_KEY = 'bardak_rejections';
+export function getLocalRejectionCount(roomCode) {
+  try { return (JSON.parse(localStorage.getItem(REJECTIONS_KEY) || '{}'))[roomCode] || 0; }
+  catch { return 0; }
+}
+function incrementLocalRejectionCount(roomCode) {
+  try {
+    const data = JSON.parse(localStorage.getItem(REJECTIONS_KEY) || '{}');
+    data[roomCode] = (data[roomCode] || 0) + 1;
+    localStorage.setItem(REJECTIONS_KEY, JSON.stringify(data));
+  } catch {}
+}
+
 // ─── Factory ──────────────────────────────────────────────────
 // Creates a multiplayer manager.
-// callbacks: { onRoomUpdate, onGameStateUpdate, onLobbyRooms, onReset, onLog }
+// callbacks: { onRoomUpdate, onGameStateUpdate, onLobbyRooms, onReset, onLog,
+//              onJoinRequest, onJoinApproved, onJoinRejected }
 export function createMultiplayer(callbacks = {}) {
-  const { onRoomUpdate, onGameStateUpdate, onLobbyRooms, onReset, onLog } = callbacks;
+  const { onRoomUpdate, onGameStateUpdate, onLobbyRooms, onReset, onLog,
+          onJoinRequest, onJoinApproved, onJoinRejected } = callbacks;
 
   const mp = {
     enabled: false,
@@ -90,6 +106,7 @@ export function createMultiplayer(callbacks = {}) {
   let roomsUnsubscribe = null;
   let engineRef = null; // set via setEngine()
   let processedPendingUids = new Set(); // track which pending players have been passed to engine
+  let activeJoinRequest = null;   // request currently shown to host (null = clear to show next)
 
   function setEngine(engine) {
     engineRef = engine;
@@ -224,6 +241,14 @@ export function createMultiplayer(callbacks = {}) {
                 processedPendingUids.add(pp.uid);
                 engineRef.addPendingPlayer({ name: pp.name, seatIndex: pp.seatIndex, uid: pp.uid });
               }
+            }
+          }
+          // Show pending join requests to host (one at a time)
+          if (activeJoinRequest === null) {
+            const pendingReqs = (data.joinRequests || []).filter(r => r.status === 'pending');
+            if (pendingReqs.length > 0 && onJoinRequest) {
+              activeJoinRequest = pendingReqs[0];
+              onJoinRequest(pendingReqs[0]);
             }
           }
           if (data.pendingAction && !mp.processingAction) {
@@ -423,7 +448,7 @@ export function createMultiplayer(callbacks = {}) {
   function startBrowsing() {
     if (roomsUnsubscribe) return;
     const database = getDb();
-    const q = query(collection(database, 'rooms'), where('status', '==', 'lobby'));
+    const q = query(collection(database, 'rooms'), where('status', 'in', ['lobby', 'playing']));
     roomsUnsubscribe = onSnapshot(q, (snapshot) => {
       const rooms = [];
       const now = Date.now();
@@ -439,13 +464,144 @@ export function createMultiplayer(callbacks = {}) {
       if (onLobbyRooms) onLobbyRooms(rooms);
     }, (err) => {
       console.error('startBrowsing error:', err);
-      // Clear so startBrowsing() can be retried once auth is ready
       roomsUnsubscribe = null;
     });
   }
 
   function stopBrowsing() {
     if (roomsUnsubscribe) { roomsUnsubscribe(); roomsUnsubscribe = null; }
+  }
+
+  // ─── Join Request flow ────────────────────────────────────────
+
+  async function requestJoin(code, playerName) {
+    const database = getDb();
+    mp.uid = mpGetUid();
+    const roomRef = doc(database, 'rooms', code.toUpperCase());
+
+    // Fast local check
+    if (getLocalRejectionCount(code.toUpperCase()) >= 2) {
+      throw new Error('BLOCKED');
+    }
+
+    const roomDoc = await getDoc(roomRef);
+    if (!roomDoc.exists()) throw new Error('Комната не найдена: ' + code);
+    const data = roomDoc.data();
+    if (data.status === 'finished') throw new Error('Игра уже завершена.');
+    if (data.status !== 'playing') throw new Error('Игра ещё не началась — войди обычным способом.');
+
+    // Authoritative rejection check
+    const rejCount = (data.rejectionCounts || {})[mp.uid] || 0;
+    if (rejCount >= 2) throw new Error('BLOCKED');
+
+    // Already pending?
+    const existingReq = (data.joinRequests || []).find(r => r.uid === mp.uid && r.status === 'pending');
+    const requestId = existingReq ? existingReq.requestId : (mp.uid + '_' + Date.now());
+
+    if (!existingReq) {
+      await updateDoc(roomRef, {
+        joinRequests: [
+          ...(data.joinRequests || []).filter(r => r.uid !== mp.uid),
+          { uid: mp.uid, name: escHtml(playerName || 'Игрок'), requestId, status: 'pending' },
+        ],
+      });
+    }
+
+    mp.roomCode = code.toUpperCase();
+    mp.roomRef = roomRef;
+    mp.enabled = false; // not yet an active player
+    mp.spectating = false;
+    listenJoinRequest(requestId);
+  }
+
+  function listenJoinRequest(requestId) {
+    if (mp.unsubscribe) mp.unsubscribe();
+    mp.unsubscribe = onSnapshot(mp.roomRef, (docSnap) => {
+      if (!docSnap.exists()) {
+        if (onJoinRejected) onJoinRejected(0);
+        mp.unsubscribe?.(); mp.unsubscribe = null;
+        return;
+      }
+      const data = docSnap.data();
+      const req = (data.joinRequests || []).find(r => r.requestId === requestId);
+      if (!req) return;
+
+      if (req.status === 'approved') {
+        joinAfterApproval(data);
+      } else if (req.status === 'rejected') {
+        const rejCount = (data.rejectionCounts || {})[mp.uid] || 0;
+        incrementLocalRejectionCount(mp.roomCode);
+        const attemptsLeft = Math.max(0, 2 - rejCount);
+        if (mp.unsubscribe) { mp.unsubscribe(); mp.unsubscribe = null; }
+        mp.roomCode = null; mp.roomRef = null; mp.enabled = false;
+        clearSession();
+        if (onJoinRejected) onJoinRejected(attemptsLeft);
+      }
+    }, (err) => { console.error('[mp] listenJoinRequest error:', err); });
+  }
+
+  function joinAfterApproval(roomData) {
+    const pendingPlayers = roomData.pendingPlayers || [];
+    const me = pendingPlayers.find(p => p.uid === mp.uid);
+    if (!me) return;
+    mp.seatIndex = me.seatIndex;
+    mp.isHost = false;
+    mp.spectating = true;
+    mp.enabled = true;
+    listenRoom(); // switch from joinRequest listener to full room listener
+    saveSession();
+    if (onJoinApproved) onJoinApproved(roomData.gameState || null);
+  }
+
+  async function approveJoinRequest(request) {
+    if (!mp.roomRef || !mp.isHost) return;
+    try {
+      const roomDoc = await getDoc(mp.roomRef);
+      if (!roomDoc.exists()) return;
+      const data = roomDoc.data();
+      const existingPlayers = data.players || [];
+      const existingPending = data.pendingPlayers || [];
+      const seatIndex = existingPlayers.length + existingPending.length;
+      const newPending = [...existingPending, { uid: request.uid, name: request.name, seatIndex }];
+      const updatedRequests = (data.joinRequests || []).map(r =>
+        r.requestId === request.requestId ? { ...r, status: 'approved' } : r
+      );
+      await updateDoc(mp.roomRef, { pendingPlayers: newPending, joinRequests: updatedRequests });
+    } catch (e) { console.error('[mp] approveJoinRequest error:', e); }
+    finally { activeJoinRequest = null; }
+  }
+
+  async function rejectJoinRequest(request) {
+    if (!mp.roomRef || !mp.isHost) return;
+    try {
+      const roomDoc = await getDoc(mp.roomRef);
+      if (!roomDoc.exists()) return;
+      const data = roomDoc.data();
+      const currentCount = (data.rejectionCounts || {})[request.uid] || 0;
+      const updatedRequests = (data.joinRequests || []).map(r =>
+        r.requestId === request.requestId ? { ...r, status: 'rejected' } : r
+      );
+      await updateDoc(mp.roomRef, {
+        joinRequests: updatedRequests,
+        [`rejectionCounts.${request.uid}`]: currentCount + 1,
+      });
+    } catch (e) { console.error('[mp] rejectJoinRequest error:', e); }
+    finally { activeJoinRequest = null; }
+  }
+
+  async function cancelJoinRequest() {
+    if (!mp.roomRef || !mp.uid) return;
+    try {
+      const roomDoc = await getDoc(mp.roomRef);
+      if (roomDoc.exists()) {
+        const data = roomDoc.data();
+        const updated = (data.joinRequests || []).filter(r => !(r.uid === mp.uid && r.status === 'pending'));
+        await updateDoc(mp.roomRef, { joinRequests: updated });
+      }
+    } catch { /* ignore */ }
+    if (mp.unsubscribe) { mp.unsubscribe(); mp.unsubscribe = null; }
+    mp.roomCode = null; mp.roomRef = null; mp.enabled = false;
+    clearSession();
   }
 
   // Called by host when engine activates pending players at round boundary.
@@ -497,6 +653,7 @@ export function createMultiplayer(callbacks = {}) {
     mp.processingAction = false;
     mp.logRenderedCount = 0;
     processedPendingUids = new Set();
+    activeJoinRequest = null;
     clearSession();
     if (onReset) onReset();
     startBrowsing();
@@ -573,6 +730,10 @@ export function createMultiplayer(callbacks = {}) {
     setEngine,
     createRoom,
     joinRoom,
+    requestJoin,
+    approveJoinRequest,
+    rejectJoinRequest,
+    cancelJoinRequest,
     hostStartGame,
     changeMaxPlayers,
     reorderPlayers,

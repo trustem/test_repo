@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { linkGoogleAccount, isLinkedToGoogle, getGoogleEmail } from '../auth/index.js';
+import { getLocalRejectionCount } from '../multiplayer/index.js';
 
-export default function LobbyScreen({ rooms, userProfile = {}, error, onErrorDismiss, onSolo, onCreateRoom, onJoinRoom, onRules, onProfile, onLeaderboard }) {
+export default function LobbyScreen({ rooms, userProfile = {}, error, onErrorDismiss,
+  joinRequestStatus, joinRejectedAttemptsLeft, onJoinRequestDismiss, onCancelJoinRequest,
+  onSolo, onCreateRoom, onJoinRoom, onRequestJoin, onRules, onProfile, onLeaderboard }) {
   const [name, setName] = useState(() => userProfile.name || localStorage.getItem('bardak_player_name') || '');
 
   // Sync name when profile changes externally (e.g. after profile save)
@@ -16,6 +19,11 @@ export default function LobbyScreen({ rooms, userProfile = {}, error, onErrorDis
   const handleJoin = (code) => {
     const n = name.trim() || 'Игрок';
     onJoinRoom(code, n);
+  };
+
+  const handleRequestJoin = (code) => {
+    const n = name.trim() || 'Игрок';
+    onRequestJoin(code, n);
   };
 
   const photo = userProfile.photoURL;
@@ -87,6 +95,24 @@ export default function LobbyScreen({ rooms, userProfile = {}, error, onErrorDis
           </div>
         </div>
 
+        {/* Join request status banner */}
+        {joinRequestStatus === 'pending' && (
+          <div className="join-req-status pending">
+            <span>Запрос отправлен — ожидание хоста...</span>
+            <button className="join-req-cancel-btn" onClick={onCancelJoinRequest}>Отменить</button>
+          </div>
+        )}
+        {joinRequestStatus === 'rejected' && (
+          <div className="join-req-status rejected" onClick={onJoinRequestDismiss}>
+            Хост отклонил запрос. Осталось попыток: {joinRejectedAttemptsLeft}
+          </div>
+        )}
+        {joinRequestStatus === 'blocked' && (
+          <div className="join-req-status blocked" onClick={onJoinRequestDismiss}>
+            Хост отказал 2 раза — вы не можете войти в эту игру
+          </div>
+        )}
+
         <div className="lobby-rooms-section">
           <div className="lobby-rooms-header">
             <span className="lobby-rooms-title">Открытые игры</span>
@@ -97,28 +123,42 @@ export default function LobbyScreen({ rooms, userProfile = {}, error, onErrorDis
               : rooms.map(room => {
                   const players = room.players || [];
                   const maxPlayers = room.maxPlayers || 4;
-                  const isFull = players.length >= maxPlayers;
+                  const isPlaying = room.status === 'playing';
+                  const isFull = !isPlaying && players.length >= maxPlayers;
                   const hostName = players[0]?.name || '?';
+                  const rejCount = isPlaying ? getLocalRejectionCount(room.code) : 0;
+                  const isBlocked = isPlaying && rejCount >= 2;
                   return (
-                    <div key={room.code} className="room-item">
+                    <div key={room.code} className={`room-item${isPlaying ? ' room-playing' : ''}`}>
                       <div className="room-item-info">
                         <div className="room-item-header">
-                          <span className={`room-item-count${isFull ? ' full' : ''}`}>
-                            {players.length}/{maxPlayers}
-                          </span>
+                          {isPlaying
+                            ? <span className="room-item-playing-badge">Идёт игра</span>
+                            : <span className={`room-item-count${isFull ? ' full' : ''}`}>{players.length}/{maxPlayers}</span>
+                          }
                           <span className="room-item-host">{hostName}</span>
                         </div>
                         <div className="room-item-players">
                           {players.map(p => p.name).join(', ')}
                         </div>
                       </div>
-                      <button
-                        className="room-join-btn"
-                        disabled={isFull}
-                        onClick={() => handleJoin(room.code)}
-                      >
-                        {isFull ? 'Заполнено' : 'Войти'}
-                      </button>
+                      {isPlaying ? (
+                        <button
+                          className="room-join-btn room-request-btn"
+                          disabled={isBlocked || joinRequestStatus === 'pending'}
+                          onClick={() => handleRequestJoin(room.code)}
+                        >
+                          {isBlocked ? 'Нельзя войти' : 'Попроситься'}
+                        </button>
+                      ) : (
+                        <button
+                          className="room-join-btn"
+                          disabled={isFull}
+                          onClick={() => handleJoin(room.code)}
+                        >
+                          {isFull ? 'Заполнено' : 'Войти'}
+                        </button>
+                      )}
                     </div>
                   );
                 })
